@@ -54,3 +54,30 @@ output "nat_gateway_ids9" {
   description = "NAT Gateway IDs"
   value       = module.networking.nat_gateway_ids
 }
+
+# Root Outputs - Frontend (S3 + CloudFront) #
+
+output "frontend9" {
+  description = "Frontend hosting outputs (suffix 9)"
+  value = {
+    frontend_bucket_name        = module.s3_cloudfront.frontend_bucket_name
+    cloudfront_distribution_id  = module.s3_cloudfront.cloudfront_distribution_id
+    cloudfront_domain_name      = module.s3_cloudfront.cloudfront_domain_name
+  }
+}
+
+# Optional individual outputs
+output "frontend_bucket_name9" {
+  value       = module.s3_cloudfront.frontend_bucket_name
+  description = "Frontend S3 bucket name"
+}
+
+output "cloudfront_distribution_id9" {
+  value       = module.s3_cloudfront.cloudfront_distribution_id
+  description = "CloudFront distribution ID"
+}
+
+output "cloudfront_domain_name9" {
+  value       = module.s3_cloudfront.cloudfront_domain_name
+  description = "CloudFront domain name"
+}

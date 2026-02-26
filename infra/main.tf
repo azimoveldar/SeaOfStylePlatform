@@ -19,3 +19,22 @@ module "networking" {
     Environment = "dev"
   }
 }
+
+# Module: s3-cloudfront
+module "s3_cloudfront" {
+  source = "./modules/s3-cloudfront"
+
+  project     = "sos"
+  name_suffix = "9"
+  region      = "ca-central-1"
+
+  # MUST be globally unique
+  # Recommended pattern:
+  # sos-frontend9-<account-id>
+  frontend_bucket_name = "sos-frontend9-539468395951"
+
+  tags = {
+    Environment = "dev"
+  }
+}
+
