@@ -7,7 +7,7 @@ resource "aws_cognito_user_pool" "this" {
   name = "${local.name_prefix}-userpool${local.s}"
 
   # Sign-in options: Email (required), Username optional per guide
-  username_attributes = ["email"]
+  username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
 
   password_policy {

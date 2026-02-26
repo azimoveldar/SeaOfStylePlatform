@@ -1,5 +1,5 @@
 variable "project" { type = string }
-variable "suffix"  { type = string }
+variable "suffix" { type = string }
 
 # Keep these flexible
 variable "callback_urls" {

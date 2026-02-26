@@ -21,13 +21,13 @@ resource "aws_iam_role" "lambda_exec" {
 
 # CloudWatch Logs
 resource "aws_iam_role_policy_attachment" "basic_logs" {
-  role      = aws_iam_role.lambda_exec.name
+  role       = aws_iam_role.lambda_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # VPC ENI permissions
 resource "aws_iam_role_policy_attachment" "vpc_access" {
-  role      = aws_iam_role.lambda_exec.name
+  role       = aws_iam_role.lambda_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
@@ -36,8 +36,8 @@ data "aws_iam_policy_document" "ddb_access" {
   statement {
     effect = "Allow"
     actions = [
-      "dynamodb:GetItem","dynamodb:PutItem","dynamodb:UpdateItem","dynamodb:DeleteItem",
-      "dynamodb:Query","dynamodb:Scan","dynamodb:BatchGetItem","dynamodb:BatchWriteItem",
+      "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem",
+      "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem",
       "dynamodb:DescribeTable"
     ]
     resources = concat(
@@ -53,6 +53,6 @@ resource "aws_iam_policy" "ddb_access" {
 }
 
 resource "aws_iam_role_policy_attachment" "ddb_attach" {
-  role      = aws_iam_role.lambda_exec.name
+  role       = aws_iam_role.lambda_exec.name
   policy_arn = aws_iam_policy.ddb_access.arn
 }
