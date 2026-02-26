@@ -42,4 +42,19 @@ module "dynamodb" {
   project = "sos"
   suffix  = "9"
 }
+module "cognito" {
+  source  = "./modules/cognito"
+  project = "sos"
+  suffix  = "9"
+
+  callback_urls = [
+    "http://localhost:5173",
+    "https://dr5o1kixybylp.cloudfront.net"
+  ]
+
+  logout_urls = [
+    "http://localhost:5173",
+    "https://dr5o1kixybylp.cloudfront.net"
+  ]
+}
 

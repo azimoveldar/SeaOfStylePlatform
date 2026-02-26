@@ -84,3 +84,14 @@ output "cloudfront_domain_name9" {
 output "dynamodb9" {
   value = module.dynamodb.dynamodb9
 }
+output "cognito9" {
+  value = module.cognito.cognito9
+}
+
+output "user_pool_id9" {
+  value = module.cognito.user_pool_id9
+}
+
+output "web_client_id9" {
+  value = module.cognito.web_client_id9
+}
