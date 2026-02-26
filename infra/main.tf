@@ -57,4 +57,20 @@ module "cognito" {
     "https://dr5o1kixybylp.cloudfront.net"
   ]
 }
+data "aws_dynamodb_table" "products9" { name = module.dynamodb.dynamodb9["products"] }
+data "aws_dynamodb_table" "orders9" { name = module.dynamodb.dynamodb9["orders"] }
+data "aws_dynamodb_table" "users9" { name = module.dynamodb.dynamodb9["users"] }
+data "aws_dynamodb_table" "carts9" { name = module.dynamodb.dynamodb9["carts"] }
 
+module "iam" {
+  source  = "./modules/iam"
+  project = "sos"
+  suffix  = "9"
+
+  dynamodb_table_arns = [
+    data.aws_dynamodb_table.products9.arn,
+    data.aws_dynamodb_table.orders9.arn,
+    data.aws_dynamodb_table.users9.arn,
+    data.aws_dynamodb_table.carts9.arn
+  ]
+}

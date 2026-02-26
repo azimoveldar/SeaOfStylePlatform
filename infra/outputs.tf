@@ -95,3 +95,10 @@ output "user_pool_id9" {
 output "web_client_id9" {
   value = module.cognito.web_client_id9
 }
+output "iam9" {
+  value = module.iam.iam9
+}
+
+output "lambda_execution_role_arn9" {
+  value = module.iam.lambda_execution_role_arn9
+}
