@@ -6,6 +6,7 @@ locals {
 resource "aws_lambda_function" "products" {
   function_name = "${local.name_prefix}-products-handler${local.s}"
   role          = var.lambda_role_arn
+
   handler       = "index.handler"
   runtime       = "nodejs20.x"
   architectures = ["arm64"]
@@ -23,7 +24,8 @@ resource "aws_lambda_function" "products" {
 
   environment {
     variables = {
-      REGION             = var.region
+      REGION = var.region
+
       DDB_PRODUCTS_TABLE = var.dynamodb_tables.products
       DDB_ORDERS_TABLE   = var.dynamodb_tables.orders
       DDB_USERS_TABLE    = var.dynamodb_tables.users

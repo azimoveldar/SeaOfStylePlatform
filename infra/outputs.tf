@@ -99,13 +99,14 @@ output "iam9" {
   value = module.iam.iam9
 }
 
-output "lambda_execution_role_arn9" {
-  value = module.iam.lambda_execution_role_arn9
-}
 output "lambda9" {
   value = module.lambda.lambda9
 }
 
 output "products_lambda_arn9" {
   value = module.lambda.products_lambda_arn9
+}
+
+output "products_lambda_name9" {
+  value = module.lambda.products_lambda_name9
 }
