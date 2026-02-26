@@ -60,9 +60,9 @@ output "nat_gateway_ids9" {
 output "frontend9" {
   description = "Frontend hosting outputs (suffix 9)"
   value = {
-    frontend_bucket_name        = module.s3_cloudfront.frontend_bucket_name
-    cloudfront_distribution_id  = module.s3_cloudfront.cloudfront_distribution_id
-    cloudfront_domain_name      = module.s3_cloudfront.cloudfront_domain_name
+    frontend_bucket_name       = module.s3_cloudfront.frontend_bucket_name
+    cloudfront_distribution_id = module.s3_cloudfront.cloudfront_distribution_id
+    cloudfront_domain_name     = module.s3_cloudfront.cloudfront_domain_name
   }
 }
 
@@ -80,4 +80,7 @@ output "cloudfront_distribution_id9" {
 output "cloudfront_domain_name9" {
   value       = module.s3_cloudfront.cloudfront_domain_name
   description = "CloudFront domain name"
+}
+output "dynamodb9" {
+  value = module.dynamodb.dynamodb9
 }

@@ -37,4 +37,9 @@ module "s3_cloudfront" {
     Environment = "dev"
   }
 }
+module "dynamodb" {
+  source  = "./modules/dynamodb"
+  project = "sos"
+  suffix  = "9"
+}
 

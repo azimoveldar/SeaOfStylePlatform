@@ -81,9 +81,9 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id       = local.origin_id
     viewer_protocol_policy = "redirect-to-https"
 
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
-    compress         = true
+    allowed_methods = ["GET", "HEAD", "OPTIONS"]
+    cached_methods  = ["GET", "HEAD", "OPTIONS"]
+    compress        = true
 
     forwarded_values {
       query_string = true
@@ -139,7 +139,7 @@ data "aws_iam_policy_document" "frontend_bucket_policy" {
   statement {
     sid = "AllowCloudFrontReadOAC"
 
-    actions = ["s3:GetObject"]
+    actions   = ["s3:GetObject"]
     resources = ["${aws_s3_bucket.frontend.arn}/*"]
 
     principals {
