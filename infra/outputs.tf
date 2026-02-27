@@ -110,3 +110,6 @@ output "products_lambda_arn9" {
 output "products_lambda_name9" {
   value = module.lambda.products_lambda_name9
 }
+output "api_invoke_url" {
+  value = module.api_gateway.invoke_url
+}

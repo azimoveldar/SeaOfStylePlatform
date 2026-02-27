@@ -64,3 +64,15 @@ variable "frontend_logout_urls9" {
     "https://dr5o1kixybylp.cloudfront.net",
   ]
 }
+variable "env" {
+  type    = string
+  default = "dev"
+}
+
+variable "cognito_user_pool_id" {
+  type = string
+}
+
+variable "cognito_app_client_id" {
+  type = string
+}

@@ -128,3 +128,23 @@ module "lambda" {
   users_zip_path    = "${path.module}/lambda-src/users.zip"
   carts_zip_path    = "${path.module}/lambda-src/carts.zip"
 }
+module "api_gateway" {
+  source = "./modules/api_gateway"
+
+  project = var.project
+  env     = var.env
+  region  = var.region
+
+  cognito_user_pool_id  = var.cognito_user_pool_id
+  cognito_app_client_id = var.cognito_app_client_id
+
+  products_lambda_invoke_arn = module.lambda.products_invoke_arn
+  orders_lambda_invoke_arn   = module.lambda.orders_invoke_arn
+  carts_lambda_invoke_arn    = module.lambda.carts_invoke_arn
+  users_lambda_invoke_arn    = module.lambda.users_invoke_arn
+
+  products_lambda_name = module.lambda.products_name
+  orders_lambda_name   = module.lambda.orders_name
+  carts_lambda_name    = module.lambda.carts_name
+  users_lambda_name    = module.lambda.users_name
+}

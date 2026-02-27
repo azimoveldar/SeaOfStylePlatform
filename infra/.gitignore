@@ -5,6 +5,7 @@
 *.tfvars
 *.tfvars.json
 crash.log
+terraform.tfvars
 
 # Optional (depends on team preference)
 .terraform.lock.hcl
