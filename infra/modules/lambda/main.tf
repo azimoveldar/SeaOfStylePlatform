@@ -3,6 +3,9 @@ locals {
   s           = var.suffix
 }
 
+############################################
+# PRODUCTS LAMBDA
+############################################
 resource "aws_lambda_function" "products" {
   function_name = "${local.name_prefix}-products-handler${local.s}"
   role          = var.lambda_role_arn
@@ -40,5 +43,95 @@ resource "aws_lambda_function" "products" {
 
   tracing_config {
     mode = "Active"
+  }
+}
+
+############################################
+# ORDERS LAMBDA
+############################################
+resource "aws_lambda_function" "orders" {
+  function_name = "${local.name_prefix}-orders-handler${local.s}"
+  role          = var.lambda_role_arn
+
+  handler       = "index.handler"
+  runtime       = "nodejs20.x"
+  architectures = ["arm64"]
+
+  filename         = var.orders_zip_path
+  source_code_hash = filebase64sha256(var.orders_zip_path)
+
+  timeout     = 30
+  memory_size = 512
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.lambda_sg_id]
+  }
+
+  environment {
+    variables = {
+      REGION           = var.region
+      DDB_ORDERS_TABLE = var.dynamodb_tables.orders
+    }
+  }
+}
+
+############################################
+# USERS LAMBDA
+############################################
+resource "aws_lambda_function" "users" {
+  function_name = "${local.name_prefix}-users-handler${local.s}"
+  role          = var.lambda_role_arn
+
+  handler       = "index.handler"
+  runtime       = "nodejs20.x"
+  architectures = ["arm64"]
+
+  filename         = var.users_zip_path
+  source_code_hash = filebase64sha256(var.users_zip_path)
+
+  timeout     = 30
+  memory_size = 512
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.lambda_sg_id]
+  }
+
+  environment {
+    variables = {
+      REGION          = var.region
+      DDB_USERS_TABLE = var.dynamodb_tables.users
+    }
+  }
+}
+
+############################################
+# CARTS LAMBDA
+############################################
+resource "aws_lambda_function" "carts" {
+  function_name = "${local.name_prefix}-carts-handler${local.s}"
+  role          = var.lambda_role_arn
+
+  handler       = "index.handler"
+  runtime       = "nodejs20.x"
+  architectures = ["arm64"]
+
+  filename         = var.carts_zip_path
+  source_code_hash = filebase64sha256(var.carts_zip_path)
+
+  timeout     = 30
+  memory_size = 512
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.lambda_sg_id]
+  }
+
+  environment {
+    variables = {
+      REGION          = var.region
+      DDB_CARTS_TABLE = var.dynamodb_tables.carts
+    }
   }
 }

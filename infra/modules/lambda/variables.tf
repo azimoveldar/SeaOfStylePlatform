@@ -19,3 +19,6 @@ variable "cognito" {
 }
 
 variable "products_zip_path" { type = string }
+variable "orders_zip_path" { type = string }
+variable "users_zip_path" { type = string }
+variable "carts_zip_path" { type = string }

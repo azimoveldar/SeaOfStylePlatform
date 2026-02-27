@@ -66,7 +66,7 @@ data "aws_dynamodb_table" "carts9" { name = module.dynamodb.dynamodb9["carts"] }
 
 # Module: iam
 module "iam" {
-  source  = "./modules/IAM"
+  source  = "./modules/iam"
   project = "sos"
   suffix  = "9"
 
@@ -102,19 +102,29 @@ locals {
 ############################################
 module "lambda" {
   source  = "./modules/lambda"
-  project = "sos"
+  project = var.project
   suffix  = var.suffix
+  region  = var.region
 
-  region = var.region
-
-  # ✅ Use vars (these are the values from your terraform output)
   lambda_role_arn        = var.lambda_execution_role_arn9
   private_subnet_ids     = var.private_subnet_ids9
   lambda_sg_id           = var.lambda_sg_id9
   cloudfront_domain_name = var.cloudfront_domain_name9
 
-  dynamodb_tables = local.dynamodb_tables9
-  cognito         = local.cognito9
+  dynamodb_tables = {
+    products = module.dynamodb.dynamodb9["products"]
+    orders   = module.dynamodb.dynamodb9["orders"]
+    users    = module.dynamodb.dynamodb9["users"]
+    carts    = module.dynamodb.dynamodb9["carts"]
+  }
+
+  cognito = {
+    user_pool_id  = var.cognito_user_pool_id9
+    web_client_id = var.cognito_web_client_id9
+  }
 
   products_zip_path = "${path.module}/lambda-src/products.zip"
+  orders_zip_path   = "${path.module}/lambda-src/orders.zip"
+  users_zip_path    = "${path.module}/lambda-src/users.zip"
+  carts_zip_path    = "${path.module}/lambda-src/carts.zip"
 }
