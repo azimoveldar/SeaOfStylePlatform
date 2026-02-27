@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  CognitoUserPool,
+  CognitoUser,
+  AuthenticationDetails,
+} from 'amazon-cognito-identity-js';
 
 /**
  * AuthContext
- *
- * Default: MOCK auth (localStorage) so the project is usable immediately.
- *
- * Production option: AWS Cognito.
- * - Keep the same function signatures (login/signup/logout/updateProfile/changePassword)
- * - Swap implementations based on VITE_AUTH_PROVIDER.
+ * - mock: localStorage demo auth
+ * - cognito: AWS Cognito (amazon-cognito-identity-js)
  */
 
 const AuthContext = createContext(null);
@@ -31,11 +32,9 @@ function readUsers() {
     return [];
   }
 }
-
 function writeUsers(users) {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
-
 function readCurrentUser() {
   try {
     return JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || 'null');
@@ -43,17 +42,13 @@ function readCurrentUser() {
     return null;
   }
 }
-
 function writeCurrentUser(user) {
   localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
 }
-
 function seedAdminIfNeeded() {
   const users = readUsers();
-  const hasAny = users.length > 0;
-  if (hasAny) return;
+  if (users.length > 0) return;
 
-  // Dev seed accounts
   const seeded = [
     {
       id: 'u_admin_1',
@@ -79,7 +74,6 @@ async function mockLogin(email, password) {
   await new Promise((r) => setTimeout(r, 450));
   const users = readUsers();
 
-  // Convenience: if you enter an email containing "admin" and it doesn't exist, auto-create it.
   let user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
   if (!user && email.toLowerCase().includes('admin')) {
     user = {
@@ -157,13 +151,134 @@ export async function mockListUsers() {
   await new Promise((r) => setTimeout(r, 200));
   return readUsers().map(({ password, ...rest }) => rest);
 }
-
 export async function mockUpdateUserRole(userId, role) {
   await new Promise((r) => setTimeout(r, 200));
   const users = readUsers();
   const next = users.map((u) => (u.id === userId ? { ...u, role } : u));
   writeUsers(next);
   return next.find((u) => u.id === userId);
+}
+
+// -------------------------
+// Cognito helpers
+// -------------------------
+const COGNITO_REGION = import.meta.env.VITE_COGNITO_REGION;
+const USER_POOL_ID = import.meta.env.VITE_COGNITO_USER_POOL_ID;
+const CLIENT_ID =
+  import.meta.env.VITE_COGNITO_USER_POOL_CLIENT_ID ||
+  import.meta.env.VITE_COGNITO_CLIENT_ID;
+
+function ensureCognitoConfigured() {
+  if (!COGNITO_REGION || !USER_POOL_ID || !CLIENT_ID) {
+    throw new Error(
+      'Cognito is not configured. Missing VITE_COGNITO_REGION / VITE_COGNITO_USER_POOL_ID / VITE_COGNITO_USER_POOL_CLIENT_ID.'
+    );
+  }
+}
+
+function getUserPool() {
+  ensureCognitoConfigured();
+  return new CognitoUserPool({
+    UserPoolId: USER_POOL_ID,
+    ClientId: CLIENT_ID,
+  });
+}
+
+function mapCognitoAttrs(attrsArray) {
+  const obj = {};
+  (attrsArray || []).forEach((a) => {
+    obj[a.getName()] = a.getValue();
+  });
+  return obj;
+}
+
+function toAppUser(cognitoUser, attrsObj) {
+  const username = cognitoUser?.getUsername?.() || cognitoUser?.username;
+  return {
+    id: attrsObj?.sub || username,
+    email: attrsObj?.email || username,
+    name: attrsObj?.name || attrsObj?.given_name || username,
+    role: 'user',
+    createdAt: new Date().toISOString(),
+  };
+}
+
+async function cognitoLogin(email, password) {
+  const pool = getUserPool();
+  const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
+  const details = new AuthenticationDetails({ Username: email, Password: password });
+
+  await new Promise((resolve, reject) => {
+    cognitoUser.authenticateUser(details, {
+      onSuccess: () => resolve(true),
+      onFailure: (err) => reject(err),
+      newPasswordRequired: () =>
+        reject(new Error('New password required. Use forgot password / reset flow.')),
+    });
+  });
+
+  const attrs = await new Promise((resolve, reject) => {
+    cognitoUser.getUserAttributes((err, attributes) => {
+      if (err) reject(err);
+      else resolve(attributes || []);
+    });
+  });
+
+  const attrsObj = mapCognitoAttrs(attrs);
+  return toAppUser(cognitoUser, attrsObj);
+}
+
+async function cognitoSignup(email, password, name) {
+  const pool = getUserPool();
+  await new Promise((resolve, reject) => {
+    pool.signUp(
+      email,
+      password,
+      [
+        { Name: 'email', Value: email },
+        { Name: 'name', Value: name },
+      ],
+      null,
+      (err, _result) => {
+        if (err) reject(err);
+        else resolve(true);
+      }
+    );
+  });
+  // user may need email confirmation before login works
+  return true;
+}
+
+async function cognitoLogout() {
+  const pool = getUserPool();
+  const current = pool.getCurrentUser();
+  if (current) current.signOut();
+}
+
+async function cognitoGetCurrentUser() {
+  const pool = getUserPool();
+  const current = pool.getCurrentUser();
+  if (!current) return null;
+
+  // validate session
+  await new Promise((resolve, reject) => {
+    current.getSession((err, session) => {
+      if (err) reject(err);
+      else if (!session?.isValid()) reject(new Error('Invalid session'));
+      else resolve(session);
+    });
+  });
+
+  // fetch attributes
+  const attrs = await new Promise((resolve, reject) => {
+    current.getUserAttributes((err, attributes) => {
+      if (err) reject(err);
+      else resolve(attributes || []);
+    });
+  });
+
+  const attrsObj = mapCognitoAttrs(attrs);
+  return toAppUser(current, attrsObj);
 }
 
 // -------------------------
@@ -176,11 +291,24 @@ export const AuthProvider = ({ children }) => {
   const provider = import.meta.env.VITE_AUTH_PROVIDER || 'mock';
 
   useEffect(() => {
-    seedAdminIfNeeded();
-    const stored = readCurrentUser();
-    setUser(stored);
-    setLoading(false);
-  }, []);
+    const init = async () => {
+      try {
+        if (provider === 'mock') {
+          seedAdminIfNeeded();
+          setUser(readCurrentUser());
+        } else {
+          const u = await cognitoGetCurrentUser();
+          setUser(u);
+        }
+      } catch (e) {
+        // If cognito isn't configured, don't crash the app; show error on login attempt
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, [provider]);
 
   const login = async (email, password) => {
     setLoading(true);
@@ -190,8 +318,9 @@ export const AuthProvider = ({ children }) => {
         setUser(u);
         return u;
       }
-      // Cognito placeholder
-      throw new Error('Cognito auth is not wired yet. Use VITE_AUTH_PROVIDER=mock for now.');
+      const u = await cognitoLogin(email, password);
+      setUser(u);
+      return u;
     } finally {
       setLoading(false);
     }
@@ -205,7 +334,9 @@ export const AuthProvider = ({ children }) => {
         setUser(u);
         return u;
       }
-      throw new Error('Cognito auth is not wired yet. Use VITE_AUTH_PROVIDER=mock for now.');
+      await cognitoSignup(email, password, name);
+      // after signup, user may need to confirm email; don’t set user yet
+      return true;
     } finally {
       setLoading(false);
     }
@@ -219,36 +350,37 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         return;
       }
-      throw new Error('Cognito auth is not wired yet.');
+      await cognitoLogout();
+      setUser(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const updateProfile = async (updates) => {
+  const updateProfile = async (_updates) => {
     if (!user) return;
     setLoading(true);
     try {
       if (provider === 'mock') {
-        const u = await mockUpdateProfile(user, updates);
+        const u = await mockUpdateProfile(user, _updates);
         setUser(u);
         return u;
       }
-      throw new Error('Cognito auth is not wired yet.');
+      throw new Error('Profile update is not implemented for Cognito yet.');
     } finally {
       setLoading(false);
     }
   };
 
-  const changePassword = async (oldPassword, newPassword) => {
+  const changePassword = async (_oldPassword, _newPassword) => {
     if (!user) return;
     setLoading(true);
     try {
       if (provider === 'mock') {
-        await mockChangePassword(user, oldPassword, newPassword);
+        await mockChangePassword(user, _oldPassword, _newPassword);
         return true;
       }
-      throw new Error('Cognito auth is not wired yet.');
+      throw new Error('Change password is not implemented for Cognito yet.');
     } finally {
       setLoading(false);
     }
