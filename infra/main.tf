@@ -148,3 +148,13 @@ module "api_gateway" {
   carts_lambda_name    = module.lambda.carts_name
   users_lambda_name    = module.lambda.users_name
 }
+module "s3_product_images" {
+  source = "./modules/s3-product-images"
+
+  bucket_name = "sos-product-images9-539468395951"
+
+  allowed_origins = [
+    "https://${module.s3_cloudfront.cloudfront_domain_name}", # dr5o1kixybylp.cloudfront.net
+    "http://localhost:5173"
+  ]
+}
