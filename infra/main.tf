@@ -158,3 +158,33 @@ module "s3_product_images" {
     "http://localhost:5173"
   ]
 }
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  region = var.region
+
+  trail_name        = "sos-audit-trail9"
+  trail_bucket_name = "sos-cloudtrail-logs9-539468395951"
+
+  api_id    = module.api_gateway.api_id
+  api_stage = var.env
+
+  lambda_names = [
+    "sos-products-handler9",
+    "sos-orders-handler9",
+    "sos-carts-handler9",
+    "sos-users-handler9",
+  ]
+
+  ddb_table_names = [
+    "sos-products9",
+    "sos-orders9",
+    "sos-carts9",
+    "sos-users9",
+  ]
+
+  cloudfront_distribution_id = "E3TDWKA5L1URYF"
+
+  # put your email to receive alarms
+  alarm_email = "abhandari33@myseneca.ca"
+}
