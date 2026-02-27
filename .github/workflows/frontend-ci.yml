@@ -1,32 +1,29 @@
-name: Frontend CI
-
+---
+$ci = @'name: Frontend CI
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - 'sos/**'
-      - '.github/workflows/frontend-ci.yml'
-
+      - sos/**
+      - .github/workflows/frontend-ci.yml
 jobs:
   lint-and-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: npm
           cache-dependency-path: sos/package-lock.json
-
       - name: Install
         working-directory: sos/
         run: npm ci
-
       - name: Lint (if present)
         working-directory: sos/
         run: npm run lint --if-present
-
       - name: Build
         working-directory: sos/
-        run: npm run build
+        run: npm run build'@Set-Content -Path .github/workflows/frontend-ci.yml -Value
+          $ci -Encoding utf8
