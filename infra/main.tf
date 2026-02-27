@@ -66,7 +66,7 @@ data "aws_dynamodb_table" "carts9" { name = module.dynamodb.dynamodb9["carts"] }
 
 # Module: iam
 module "iam" {
-  source  = "./modules/iam"
+  source  = "./modules/IAM"
   project = "sos"
   suffix  = "9"
 
