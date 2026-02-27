@@ -32,9 +32,11 @@ jobs:
           cat > .env.production << EOF
           VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
           VITE_AUTH_PROVIDER=cognito
+          VITE_COGNITO_REGION=${{ secrets.VITE_COGNITO_REGION }}
           VITE_COGNITO_USER_POOL_ID=${{ secrets.VITE_COGNITO_USER_POOL_ID }}
           VITE_COGNITO_CLIENT_ID=${{ secrets.VITE_COGNITO_CLIENT_ID }}
-          VITE_COGNITO_REGION=${{ secrets.VITE_COGNITO_REGION }}
+          VITE_COGNITO_USER_POOL_CLIENT_ID=${{ secrets.VITE_COGNITO_USER_POOL_CLIENT_ID }}
+          VITE_BASE_PATH=/
           VITE_STRIPE_PUBLISHABLE_KEY=${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
           VITE_S3_IMAGES_BASE_URL=${{ secrets.VITE_S3_IMAGES_BASE_URL }}
           EOF
