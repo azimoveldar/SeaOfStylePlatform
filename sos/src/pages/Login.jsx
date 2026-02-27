@@ -9,6 +9,8 @@ export default function Login() {
   const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  const provider = import.meta.env.VITE_AUTH_PROVIDER || 'mock';
+  const isMock = provider === 'mock';
 
   const returnTo = location.state?.returnTo || createPageUrl('Account');
 
@@ -29,7 +31,7 @@ export default function Login() {
         <div className="mb-6">
           <p className="text-xs font-semibold tracking-widest uppercase text-[#C96B3A] mb-2">Welcome back</p>
           <h1 className="text-3xl font-black text-[#111111]" style={{ fontFamily: 'Playfair Display, serif' }}>Sign in</h1>
-          <p className="text-gray-600 mt-2 text-sm">Use the mock auth now; swap to Cognito later.</p>
+          <p className="text-gray-600 mt-2 text-sm">{isMock ? 'Use the mock auth now; swap to Cognito later.' : 'Sign in with your Cognito account.'}</p>
         </div>
 
         {error && (
@@ -58,9 +60,9 @@ export default function Login() {
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#C96B3A] focus:outline-none"
               placeholder="••••••••"
             />
-            <p className="text-xs text-gray-500 mt-2">
-              Mock tip: use an email containing <span className="font-semibold">admin</span> to get admin role.
-            </p>
+            {isMock && (
+              <p className="text-xs text-gray-500 mt-2"> Mock tip: use an email containing <span className="font-semibold">admin</span> to get admin role.</p>
+            )}
           </div>
           <button
             disabled={loading}
