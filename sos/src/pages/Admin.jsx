@@ -9,7 +9,11 @@ import ProductFormModal from '../components/admin/ProductFormModal';
 import ProductsTable from '../components/admin/ProductsTable';
 import OrdersTable from '../components/admin/OrdersTable';
 import UsersTable from '../components/admin/UsersTable';
-import { listAllOrders, updateOrderStatus } from '@/services/orders';
+
+// ✅ use the new exports from services/orders.js
+import { listAllOrdersAdmin, updateOrderStatusAdmin } from '@/services/orders';
+
+// still mocked users for now
 import { mockListUsers, mockUpdateUserRole } from '@/components/AuthContext';
 
 function TabButton({ active, onClick, icon: Icon, label }) {
@@ -17,7 +21,9 @@ function TabButton({ active, onClick, icon: Icon, label }) {
     <button
       onClick={onClick}
       className={`flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm transition-colors ${
-        active ? 'bg-black text-white' : 'bg-white text-black hover:bg-orange-50 border border-gray-200'
+        active
+          ? 'bg-black text-white'
+          : 'bg-white text-black hover:bg-orange-50 border border-gray-200'
       }`}
     >
       <Icon className="w-4 h-4" />
@@ -29,16 +35,16 @@ function TabButton({ active, onClick, icon: Icon, label }) {
 function AdminContent() {
   const [tab, setTab] = useState('products');
 
-  // Products
+  // Products (still mock for now — we’ll wire to /products + /admin/* next)
   const [products, setProducts] = useState(mockProducts);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // Orders
+  // Orders (now from backend admin endpoint)
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
 
-  // Users
+  // Users (still mock for now)
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
 
@@ -47,18 +53,23 @@ function AdminContent() {
     return { totalOrders: orders.length, totalRevenue };
   }, [orders]);
 
+  // ✅ Load admin orders from API
   useEffect(() => {
     (async () => {
       setOrdersLoading(true);
       try {
-        const all = await listAllOrders();
-        setOrders(all);
+        const all = await listAllOrdersAdmin();
+        setOrders(Array.isArray(all) ? all : (all?.items ?? []));
+      } catch (e) {
+        console.error('Admin orders load failed:', e);
+        setOrders([]);
       } finally {
         setOrdersLoading(false);
       }
     })();
   }, []);
 
+  // Users mock
   useEffect(() => {
     (async () => {
       setUsersLoading(true);
@@ -83,10 +94,14 @@ function AdminContent() {
 
   const handleSaveProduct = (productData) => {
     if (editingProduct) {
-      // PROD: PUT /admin/products/{id} → Lambda → DynamoDB (requires admin role)
-      setProducts((prev) => prev.map((p) => (p.id === editingProduct.id ? { ...productData, id: editingProduct.id } : p)));
+      // TODO (next): PUT /products/{id} (admin)
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === editingProduct.id ? { ...productData, id: editingProduct.id } : p
+        )
+      );
     } else {
-      // PROD: POST /admin/products → Lambda → DynamoDB
+      // TODO (next): POST /products (admin)
       const newProduct = { ...productData, id: String(Date.now()) };
       setProducts((prev) => [...prev, newProduct]);
     }
@@ -95,25 +110,32 @@ function AdminContent() {
   };
 
   const handleDeleteProduct = (id) => {
-    // PROD: DELETE /admin/products/{id}
+    // TODO (next): DELETE /products/{id} (admin)
     if (confirm('Delete this product?')) {
       setProducts((prev) => prev.filter((p) => p.id !== id));
     }
   };
 
   const handleToggleStock = (id) => {
-    // PROD: PATCH /admin/products/{id}
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, inStock: !p.inStock } : p)));
+    // TODO (next): PUT /products/{id} (admin) with inStock toggle
+    setProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, inStock: !p.inStock } : p))
+    );
   };
 
+  // ✅ Update order status using admin API
   const handleUpdateOrder = async (orderId, status) => {
-    // PROD: PATCH /admin/orders/{id} { status }
-    const updated = await updateOrderStatus(orderId, status);
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+    try {
+      const updated = await updateOrderStatusAdmin(orderId, status);
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+    } catch (e) {
+      console.error('Update order failed:', e);
+      alert('Failed to update order status. Check CloudWatch logs / API response.');
+    }
   };
 
   const handleChangeRole = async (userId, role) => {
-    // PROD: PATCH /admin/users/{id} { role }
+    // TODO (later): PATCH /admin/users/{id}
     await mockUpdateUserRole(userId, role);
     const list = await mockListUsers();
     setUsers(list);
@@ -148,7 +170,7 @@ function AdminContent() {
             <p className="text-3xl font-black text-black mt-1">{stats.totalOrders}</p>
           </div>
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <p className="text-xs font-bold tracking-wider uppercase text-gray-500">Revenue (mock)</p>
+            <p className="text-xs font-bold tracking-wider uppercase text-gray-500">Revenue</p>
             <p className="text-3xl font-black text-black mt-1">${stats.totalRevenue.toFixed(2)}</p>
           </div>
         </div>
@@ -174,7 +196,12 @@ function AdminContent() {
               </button>
             </div>
 
-            <ProductsTable products={products} onEdit={openEditModal} onDelete={handleDeleteProduct} onToggleStock={handleToggleStock} />
+            <ProductsTable
+              products={products}
+              onEdit={openEditModal}
+              onDelete={handleDeleteProduct}
+              onToggleStock={handleToggleStock}
+            />
           </div>
         )}
 
@@ -211,14 +238,13 @@ function AdminContent() {
           <h3 className="font-bold text-black mb-3">AWS Integration Notes</h3>
           <ul className="text-sm text-gray-700 space-y-1.5">
             <li>
-              • <strong>Auth:</strong> Protect admin endpoints using Cognito JWT + API Gateway authorizer (check{' '}
-              <code className="bg-white px-1 rounded">custom:role = admin</code>)
+              • <strong>Auth:</strong> Admin endpoints require Cognito JWT + Admin group check
             </li>
             <li>• <strong>Products:</strong> CRUD via API Gateway → Lambda → DynamoDB</li>
-            <li>• <strong>Orders:</strong> POST /orders for checkout; PATCH /admin/orders for status updates</li>
-            <li>• <strong>Users:</strong> List/manage users via admin Lambda (or Cognito admin APIs)</li>
-            <li>• <strong>Images:</strong> Pre-signed S3 PUT upload, CloudFront CDN delivery</li>
-            <li>• <strong>Stripe:</strong> Checkout sessions created by Lambda; webhooks handled via API Gateway</li>
+            <li>• <strong>Orders:</strong> Admin reads via <code className="bg-white px-1 rounded">/admin/orders</code></li>
+            <li>• <strong>Users:</strong> Admin via <code className="bg-white px-1 rounded">/admin/users</code> (later)</li>
+            <li>• <strong>Images:</strong> S3 uploads + CloudFront CDN</li>
+            <li>• <strong>Stripe:</strong> Sessions created by Lambda; webhooks via <code className="bg-white px-1 rounded">/webhooks/stripe</code></li>
           </ul>
         </div>
       </div>
