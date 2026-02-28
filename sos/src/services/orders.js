@@ -1,57 +1,26 @@
-/**
- * orders.js
- * Dev-friendly localStorage orders.
- *
- * PROD: Replace with fetch calls to API Gateway:
- *  - GET /orders (user)
- *  - POST /orders
- *  - GET /admin/orders
- *  - PATCH /admin/orders/{id}
- */
+import { api } from "./apiClient";
 
-const ORDERS_KEY = 'sos_orders_v1';
-
-function readAll() {
-  try {
-    return JSON.parse(localStorage.getItem(ORDERS_KEY) || '[]');
-  } catch {
-    return [];
-  }
+// GET /orders (auth required)
+export function listOrdersForUser() {
+  return api("/orders", { method: "GET" });
 }
 
-function writeAll(orders) {
-  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+// POST /orders (auth required) – your backend decides how to store it
+export function createOrder(payload) {
+  return api("/orders", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
-export async function saveOrderForUser(userId, payload) {
-  await new Promise(r => setTimeout(r, 400));
-  const orders = readAll();
-  const id = `ORD-${String(Date.now()).slice(-6)}`;
-  const order = {
-    id,
-    userId,
-    createdAt: new Date().toISOString(),
-    status: 'Processing',
-    ...payload,
-  };
-  writeAll([order, ...orders]);
-  return order;
+// Admin (if your backend supports it)
+export function listAllOrdersAdmin() {
+  return api("/admin/orders", { method: "GET" });
 }
 
-export async function listOrdersForUser(userId) {
-  await new Promise(r => setTimeout(r, 250));
-  return readAll().filter(o => o.userId === userId);
-}
-
-export async function listAllOrders() {
-  await new Promise(r => setTimeout(r, 250));
-  return readAll();
-}
-
-export async function updateOrderStatus(orderId, status) {
-  await new Promise(r => setTimeout(r, 250));
-  const orders = readAll();
-  const next = orders.map(o => o.id === orderId ? { ...o, status } : o);
-  writeAll(next);
-  return next.find(o => o.id === orderId);
+export function updateOrderStatusAdmin(orderId, status) {
+  return api(`/admin/orders/${orderId}`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
+  });
 }
