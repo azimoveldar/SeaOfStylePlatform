@@ -22,10 +22,12 @@ function LayoutInner({ children, currentPageName }) {
 
 export default function Layout({ children, currentPageName }) {
   return (
-    <CartProvider>
-      <LayoutInner currentPageName={currentPageName}>
-        {children}
-      </LayoutInner>
-    </CartProvider>
+    <AuthProvider>
+      <CartProvider>
+        <LayoutInner currentPageName={currentPageName}>
+          {children}
+        </LayoutInner>
+      </CartProvider>
+    </AuthProvider>
   );
 }
