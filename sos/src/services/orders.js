@@ -1,10 +1,14 @@
 import { api } from "./apiClient";
 
-/** USER (Auth required) */
+/** USER */
 export function listOrdersForUser() {
   return api("/orders", { method: "GET" });
 }
 
+/**
+ * If your API does NOT have POST /orders (your screenshot shows only GET),
+ * keep createOrder but DON'T use it until you add POST /orders or webhook creates orders.
+ */
 export function createOrder(payload) {
   return api("/orders", {
     method: "POST",
@@ -12,8 +16,10 @@ export function createOrder(payload) {
   });
 }
 
-/** ADMIN (Auth required + admin group check) */
+/** ADMIN */
 export function listAllOrdersAdmin() {
+  // Your API Gateway shows /admin/{proxy+}
+  // So /admin/orders is still a valid path (proxy) if your Lambda routes it.
   return api("/admin/orders", { method: "GET" });
 }
 
@@ -24,18 +30,16 @@ export function updateOrderStatusAdmin(orderId, status) {
   });
 }
 
-/* ✅ BACKWARD-COMPAT exports (so old pages don’t break) */
-// Checkout.jsx expects saveOrderForUser(userId, payload)
-export async function saveOrderForUser(userId, payload) {
-  // ignore userId (backend should take it from JWT)
-  return createOrder(payload);
-}
-
-// Admin.jsx expects listAllOrders + updateOrderStatus
+/* ✅ COMPATIBILITY EXPORTS (old names used by old pages) */
 export function listAllOrders() {
   return listAllOrdersAdmin();
 }
 
 export function updateOrderStatus(orderId, status) {
   return updateOrderStatusAdmin(orderId, status);
+}
+
+export async function saveOrderForUser(userId, payload) {
+  // ignore userId; backend should read user from JWT
+  return createOrder(payload);
 }
