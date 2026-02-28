@@ -4,6 +4,8 @@ import { queryClientInstance } from '@/lib/query-client';
 import { pagesConfig } from './pages.config';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/components/AuthContext';
+// 1) Added CartProvider import
+import { CartProvider } from '@/components/CartContext';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import Checkout from '@/pages/Checkout';
@@ -19,46 +21,49 @@ const LayoutWrapper = ({ children, currentPageName }) =>
 function App() {
   return (
     <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <Routes>
-            {/* Auth */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
+      {/* 2) Wrapped components with CartProvider */}
+      <CartProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <Router>
+            <Routes>
+              {/* Auth */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
 
-            {/* Checkout (separate route so Cart can push here) */}
-            <Route path="/checkout" element={<Checkout />} />
+              {/* Checkout (separate route so Cart can push here) */}
+              <Route path="/checkout" element={<Checkout />} />
 
-            {/* App pages from config */}
-            <Route
-              path="/"
-              element={
-                <LayoutWrapper currentPageName={mainPageKey}>
-                  <MainPage />
-                </LayoutWrapper>
-              }
-            />
-
-            {Object.entries(Pages).map(([path, Page]) => (
+              {/* App pages from config */}
               <Route
-                key={path}
-                path={`/${path}`}
+                path="/"
                 element={
-                  <LayoutWrapper currentPageName={path}>
-                    <Page />
+                  <LayoutWrapper currentPageName={mainPageKey}>
+                    <MainPage />
                   </LayoutWrapper>
                 }
               />
-            ))}
 
-            {/* Common aliases */}
-            <Route path="/" element={<Navigate to={mainPageKey ? `/${mainPageKey}` : '/Home'} replace />} />
+              {Object.entries(Pages).map(([path, Page]) => (
+                <Route
+                  key={path}
+                  path={`/${path}`}
+                  element={
+                    <LayoutWrapper currentPageName={path}>
+                      <Page />
+                    </LayoutWrapper>
+                  }
+                />
+              ))}
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
+              {/* Common aliases */}
+              <Route path="/" element={<Navigate to={mainPageKey ? `/${mainPageKey}` : '/Home'} replace />} />
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Router>
+          <Toaster />
+        </QueryClientProvider>
+      </CartProvider>
     </AuthProvider>
   );
 }
