@@ -4,15 +4,16 @@ import { useAuth } from '@/components/AuthContext';
 import { createPageUrl } from '@/utils';
 
 export default function Login() {
-  const { login, loading } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [form, setForm] = useState({ email: '', password: '' });
-  const [error, setError] = useState('');
-  const provider = import.meta.env.VITE_AUTH_PROVIDER || 'mock';
-  const isMock = provider === 'mock';
+  const { login, loading, authProvider } = useAuth();
+  const navigate  = useNavigate();
+  const location  = useLocation();
 
-  const returnTo = location.state?.returnTo || createPageUrl('Account');
+  const isMock    = authProvider !== 'cognito';
+  const returnTo  = location.state?.returnTo || createPageUrl('Account');
+  const confirmed = location.state?.message;  // set by Signup confirmation redirect
+
+  const [form,  setForm]  = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -21,7 +22,17 @@ export default function Login() {
       await login(form.email, form.password);
       navigate(returnTo, { replace: true });
     } catch (err) {
-      setError(err?.message || 'Login failed.');
+      // Provide user-friendly messages for common Cognito errors
+      const msg = err?.message || '';
+      if (msg.includes('User is not confirmed')) {
+        setError('Please confirm your email address before signing in. Check your inbox for the verification code.');
+      } else if (msg.includes('Incorrect username or password')) {
+        setError('Incorrect email or password.');
+      } else if (msg.includes('session has expired')) {
+        setError('Your session has expired. Please sign in again.');
+      } else {
+        setError(msg || 'Login failed. Please try again.');
+      }
     }
   };
 
@@ -29,13 +40,33 @@ export default function Login() {
     <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm p-8">
         <div className="mb-6">
-          <p className="text-xs font-semibold tracking-widest uppercase text-[#C96B3A] mb-2">Welcome back</p>
-          <h1 className="text-3xl font-black text-[#111111]" style={{ fontFamily: 'Playfair Display, serif' }}>Sign in</h1>
-          <p className="text-gray-600 mt-2 text-sm">{isMock ? 'Use the mock auth now; swap to Cognito later.' : 'Sign in with your Cognito account.'}</p>
+          <p className="text-xs font-semibold tracking-widest uppercase text-[#C96B3A] mb-2">
+            Welcome back
+          </p>
+          <h1
+            className="text-3xl font-black text-[#111111]"
+            style={{ fontFamily: 'Playfair Display, serif' }}
+          >
+            Sign in
+          </h1>
+          <p className="text-gray-600 mt-2 text-sm">
+            {isMock
+              ? 'Mock auth — swap to Cognito via VITE_AUTH_PROVIDER=cognito.'
+              : 'Sign in with your Sea of Style account.'}
+          </p>
         </div>
 
+        {/* Success message from signup confirmation */}
+        {confirmed && (
+          <div className="mb-4 p-3 rounded-lg border border-green-200 bg-green-50 text-green-700 text-sm">
+            {confirmed}
+          </div>
+        )}
+
         {error && (
-          <div className="mb-4 p-3 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm">{error}</div>
+          <div className="mb-4 p-3 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm">
+            {error}
+          </div>
         )}
 
         <form onSubmit={onSubmit} className="space-y-4">
@@ -44,6 +75,7 @@ export default function Login() {
             <input
               type="email"
               required
+              autoComplete="email"
               value={form.email}
               onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#C96B3A] focus:outline-none"
@@ -55,13 +87,16 @@ export default function Login() {
             <input
               type="password"
               required
+              autoComplete="current-password"
               value={form.password}
               onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#C96B3A] focus:outline-none"
               placeholder="••••••••"
             />
             {isMock && (
-              <p className="text-xs text-gray-500 mt-2"> Mock tip: use an email containing <span className="font-semibold">admin</span> to get admin role.</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Mock tip: email containing <strong>admin</strong> = admin role.
+              </p>
             )}
           </div>
           <button
@@ -73,12 +108,16 @@ export default function Login() {
         </form>
 
         <div className="mt-6 text-sm text-gray-600">
-          Don’t have an account?{' '}
-          <Link className="font-semibold text-[#C96B3A] hover:underline" to="/signup">Create one</Link>
+          Don't have an account?{' '}
+          <Link className="font-semibold text-[#C96B3A] hover:underline" to="/signup">
+            Create one
+          </Link>
         </div>
 
         <div className="mt-6 text-xs text-gray-500">
-          <Link to={createPageUrl('Home')} className="hover:underline">Back to store</Link>
+          <Link to={createPageUrl('Home')} className="hover:underline">
+            Back to store
+          </Link>
         </div>
       </div>
     </div>

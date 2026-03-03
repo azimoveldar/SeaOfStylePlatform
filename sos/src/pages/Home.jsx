@@ -1,12 +1,37 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import ProductCard from '../components/shop/ProductCard';
-import { mockProducts, categories } from '../components/mockData';
+import { listProducts } from '@/services/products';
 
 export default function Home() {
-  const featuredProducts = mockProducts.slice(0, 4);
+  const [featuredProducts, setFeaturedProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Derive categories from API data for the category strip
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await listProducts();
+        if (!mounted) return;
+        // Show first 4 as featured (or products with isFeatured flag)
+        const featured = data.filter((p) => p.isFeatured).slice(0, 4);
+        setFeaturedProducts(featured.length > 0 ? featured : data.slice(0, 4));
+        // Build unique category list
+        const cats = [...new Set(data.map((p) => p.category))].sort();
+        setCategories(cats);
+      } catch {
+        // Silent fail on home page — products section just won't show
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   return (
     <div className="bg-[#FAF7F2]">
@@ -22,7 +47,10 @@ export default function Home() {
               <span className="text-xs font-semibold tracking-widest uppercase text-[#C96B3A]">New Summer Collection</span>
             </div>
 
-            <h1 className="text-6xl md:text-8xl font-black text-[#111111] mb-8 leading-[0.95] tracking-tight" style={{fontFamily:'Playfair Display, serif'}}>
+            <h1
+              className="text-6xl md:text-8xl font-black text-[#111111] mb-8 leading-[0.95] tracking-tight"
+              style={{ fontFamily: 'Playfair Display, serif' }}
+            >
               Where Style
               <br />
               <em className="not-italic text-[#C96B3A]">Makes Waves</em>
@@ -53,103 +81,82 @@ export default function Home() {
         {/* Wave divider */}
         <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-none">
           <svg viewBox="0 0 1440 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full">
-            <path d="M0 48C240 16 480 0 720 16C960 32 1200 48 1440 32V48H0Z" fill="#FAF7F2"/>
+            <path d="M0 48C240 16 480 0 720 16C960 32 1200 48 1440 32V48H0Z" fill="#FAF7F2" />
           </svg>
         </div>
       </section>
 
+      {/* Categories strip */}
+      {categories.length > 0 && (
+        <section className="py-12 bg-[#FAF7F2]">
+          <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
+            <div className="flex flex-wrap gap-3 justify-center">
+              {categories.map((cat) => (
+                <Link
+                  key={cat}
+                  to={`${createPageUrl('Shop')}?category=${encodeURIComponent(cat)}`}
+                  className="px-6 py-2.5 bg-white rounded-full text-sm font-medium text-[#111111] border border-[#111111]/10 hover:bg-[#111111] hover:text-white transition-all duration-200"
+                >
+                  {cat}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Featured Products */}
-      <section className="py-28">
+      <section className="py-16 bg-[#FAF7F2]">
         <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
-          <div className="flex items-end justify-between mb-14">
+          <div className="flex items-end justify-between mb-10">
             <div>
-              <p className="text-xs font-semibold tracking-widest uppercase text-[#C96B3A] mb-3">Curated for You</p>
-              <h2 className="text-5xl font-black text-[#111111] leading-tight" style={{fontFamily:'Playfair Display, serif'}}>Featured Styles</h2>
+              <p className="text-xs font-semibold tracking-widest uppercase text-[#C96B3A] mb-3">Handpicked for you</p>
+              <h2
+                className="text-4xl md:text-5xl font-black text-[#111111]"
+                style={{ fontFamily: 'Playfair Display, serif' }}
+              >
+                Featured Pieces
+              </h2>
             </div>
             <Link
               to={createPageUrl('Shop')}
-              className="hidden md:inline-flex items-center gap-2 text-[#111111] font-semibold hover:text-[#C96B3A] transition-colors text-sm border-b border-[#111111]/20 hover:border-[#C96B3A] pb-0.5"
+              className="hidden md:inline-flex items-center gap-2 text-sm font-semibold text-[#111111] hover:text-[#C96B3A] transition-colors"
             >
-              View All
-              <ArrowRight className="w-4 h-4" />
+              View all <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {featuredProducts.map(product => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          {/* Loading skeleton */}
+          {loading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl overflow-hidden animate-pulse">
+                  <div className="aspect-square bg-gray-200" />
+                  <div className="p-4 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-3/4" />
+                    <div className="h-4 bg-gray-200 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!loading && featuredProducts.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              {featuredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          )}
 
           <div className="mt-10 text-center md:hidden">
             <Link
               to={createPageUrl('Shop')}
-              className="inline-flex items-center gap-2 text-[#111111] font-semibold hover:text-[#C96B3A] transition-colors text-sm"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-[#111111] hover:text-[#C96B3A] transition-colors"
             >
-              View All Products
-              <ArrowRight className="w-4 h-4" />
+              View all products <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-        </div>
-      </section>
-
-      {/* Category Highlights */}
-      <section className="py-28 bg-[#F5EFE0]">
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
-          <div className="text-center mb-16">
-            <p className="text-xs font-semibold tracking-widest uppercase text-[#C96B3A] mb-3">Explore</p>
-            <h2 className="text-5xl font-black text-[#111111]" style={{fontFamily:'Playfair Display, serif'}}>Shop by Category</h2>
-            <p className="text-[#4A4A4A] max-w-md mx-auto mt-4 font-light leading-relaxed">
-              Explore our carefully curated collections designed for every moment
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-            {categories.slice(1, 5).map((category, index) => {
-              const bgs = ['bg-[#EDD9A3]', 'bg-[#E8C4A8]', 'bg-[#D4C4B0]', 'bg-[#E0D0B8]'];
-              return (
-                <Link
-                  key={category}
-                  to={createPageUrl(`Shop?category=${category}`)}
-                  className={`group relative aspect-square rounded-3xl overflow-hidden ${bgs[index]} hover:shadow-2xl transition-all duration-500`}
-                >
-                  <div className="absolute inset-0 bg-[#111111]/0 group-hover:bg-[#111111]/8 transition-all duration-500 rounded-3xl" />
-                  <div className="absolute inset-0 flex flex-col items-start justify-end p-7">
-                    <h3 className="text-2xl font-black text-[#111111] group-hover:text-[#C96B3A] transition-colors duration-300" style={{fontFamily:'Playfair Display, serif'}}>
-                      {category}
-                    </h3>
-                    <span className="flex items-center gap-1 text-xs font-semibold text-[#111111]/50 group-hover:text-[#C96B3A] transition-colors mt-1">
-                      Shop now <ArrowRight className="w-3 h-3" />
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-32 bg-[#111111] relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full border border-white" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full border border-white" />
-        </div>
-        <div className="max-w-4xl mx-auto px-6 sm:px-8 lg:px-12 text-center relative z-10">
-          <p className="text-xs font-semibold tracking-widest uppercase text-[#E8A84C] mb-6">Join Us</p>
-          <h2 className="text-5xl md:text-6xl font-black text-white mb-6 leading-tight" style={{fontFamily:'Playfair Display, serif'}}>
-            Ready to Make a Splash?
-          </h2>
-          <p className="text-[#A0A0A0] mb-10 max-w-xl mx-auto font-light leading-relaxed">
-            Join thousands of style enthusiasts who've discovered their perfect look with Sea of Style
-          </p>
-          <Link
-            to={createPageUrl('Shop')}
-            className="inline-flex items-center gap-2.5 bg-white text-[#111111] px-10 py-4 rounded-full font-semibold tracking-wide hover:bg-[#E8A84C] transition-all duration-300 text-sm"
-          >
-            Start Shopping
-            <ArrowRight className="w-4 h-4" />
-          </Link>
         </div>
       </section>
     </div>

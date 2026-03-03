@@ -4,11 +4,12 @@ import { queryClientInstance } from '@/lib/query-client';
 import { pagesConfig } from './pages.config';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/components/AuthContext';
-// 1) Added CartProvider import
 import { CartProvider } from '@/components/CartContext';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import Checkout from '@/pages/Checkout';
+import CheckoutSuccess from '@/pages/CheckoutSuccess';
+import CheckoutCancel from '@/pages/CheckoutCancel';
 import NotFound from '@/pages/NotFound';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -21,19 +22,25 @@ const LayoutWrapper = ({ children, currentPageName }) =>
 function App() {
   return (
     <AuthProvider>
-      {/* 2) Wrapped components with CartProvider */}
       <CartProvider>
         <QueryClientProvider client={queryClientInstance}>
           <Router>
             <Routes>
               {/* Auth */}
-              <Route path="/login" element={<Login />} />
+              <Route path="/login"  element={<Login />} />
               <Route path="/signup" element={<Signup />} />
 
-              {/* Checkout (separate route so Cart can push here) */}
-              <Route path="/checkout" element={<Checkout />} />
+              {/* Checkout flow */}
+              <Route path="/checkout"         element={<Checkout />} />
+              {/*
+                Stripe success_url must match exactly what your Lambda sets.
+                Lambda should set: success_url = "https://yourdomain.com/CheckoutSuccess?session_id={CHECKOUT_SESSION_ID}"
+                That ?session_id param lands here and CheckoutSuccess reads it.
+              */}
+              <Route path="/CheckoutSuccess"  element={<LayoutWrapper currentPageName="CheckoutSuccess"><CheckoutSuccess /></LayoutWrapper>} />
+              <Route path="/CheckoutCancel"   element={<LayoutWrapper currentPageName="CheckoutCancel"><CheckoutCancel /></LayoutWrapper>} />
 
-              {/* App pages from config */}
+              {/* Main landing page */}
               <Route
                 path="/"
                 element={
@@ -43,6 +50,7 @@ function App() {
                 }
               />
 
+              {/* All other pages from config */}
               {Object.entries(Pages).map(([path, Page]) => (
                 <Route
                   key={path}
@@ -54,9 +62,6 @@ function App() {
                   }
                 />
               ))}
-
-              {/* Common aliases */}
-              <Route path="/" element={<Navigate to={mainPageKey ? `/${mainPageKey}` : '/Home'} replace />} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>

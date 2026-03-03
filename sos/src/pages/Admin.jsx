@@ -1,20 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, ArrowLeft, Package, Users, ClipboardList } from 'lucide-react';
+import { Plus, ArrowLeft, Package, Users, ClipboardList, AlertCircle } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import ProtectedRoute from '../components/common/ProtectedRoute';
-import { mockProducts } from '../components/mockData';
 import StatsBar from '../components/admin/StatsBar';
 import ProductFormModal from '../components/admin/ProductFormModal';
 import ProductsTable from '../components/admin/ProductsTable';
 import OrdersTable from '../components/admin/OrdersTable';
 import UsersTable from '../components/admin/UsersTable';
 
-// ✅ use the new exports from services/orders.js
+import {
+  listProducts,
+  adminCreateProduct,
+  adminUpdateProduct,
+  adminDeleteProduct,
+  adminToggleStock,
+} from '@/services/products';
 import { listAllOrdersAdmin, updateOrderStatusAdmin } from '@/services/orders';
-
-// still mocked users for now
-import { mockListUsers, mockUpdateUserRole } from '@/components/AuthContext';
+import { adminListUsers, adminUpdateUserRole } from '@/services/users';
 
 function TabButton({ active, onClick, icon: Icon, label }) {
   return (
@@ -32,157 +35,189 @@ function TabButton({ active, onClick, icon: Icon, label }) {
   );
 }
 
+function ErrorBanner({ message, onRetry }) {
+  return (
+    <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+      <AlertCircle className="w-5 h-5 flex-shrink-0" />
+      <span className="flex-1">{message}</span>
+      {onRetry && (
+        <button onClick={onRetry} className="font-semibold underline">
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
 function AdminContent() {
   const [tab, setTab] = useState('products');
 
-  // Products (still mock for now — we’ll wire to /products + /admin/* next)
-  const [products, setProducts] = useState(mockProducts);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
+  // ── Products ──────────────────────────────────────────────────────────────
+  const [products,        setProducts]        = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError,   setProductsError]   = useState('');
+  const [modalOpen,       setModalOpen]       = useState(false);
+  const [editingProduct,  setEditingProduct]  = useState(null);
 
-  // Orders (now from backend admin endpoint)
-  const [orders, setOrders] = useState([]);
-  const [ordersLoading, setOrdersLoading] = useState(true);
-
-  // Users (still mock for now)
-  const [users, setUsers] = useState([]);
-  const [usersLoading, setUsersLoading] = useState(true);
-
-  const stats = useMemo(() => {
-    const totalRevenue = orders.reduce((sum, o) => sum + (o.totals?.total || 0), 0);
-    return { totalOrders: orders.length, totalRevenue };
-  }, [orders]);
-
-  // ✅ Load admin orders from API
-  useEffect(() => {
-    (async () => {
-      setOrdersLoading(true);
-      try {
-        const all = await listAllOrdersAdmin();
-        setOrders(Array.isArray(all) ? all : (all?.items ?? []));
-      } catch (e) {
-        console.error('Admin orders load failed:', e);
-        setOrders([]);
-      } finally {
-        setOrdersLoading(false);
-      }
-    })();
-  }, []);
-
-  // Users mock
-  useEffect(() => {
-    (async () => {
-      setUsersLoading(true);
-      try {
-        const list = await mockListUsers();
-        setUsers(list);
-      } finally {
-        setUsersLoading(false);
-      }
-    })();
-  }, []);
-
-  const openAddModal = () => {
-    setEditingProduct(null);
-    setModalOpen(true);
+  const fetchProducts = async () => {
+    setProductsLoading(true);
+    setProductsError('');
+    try {
+      const data = await listProducts();
+      setProducts(data);
+    } catch (e) {
+      setProductsError(e?.message || 'Failed to load products.');
+    } finally {
+      setProductsLoading(false);
+    }
   };
 
-  const openEditModal = (product) => {
-    setEditingProduct(product);
-    setModalOpen(true);
+  useEffect(() => { fetchProducts(); }, []);
+
+  const openAddModal  = () => { setEditingProduct(null);    setModalOpen(true); };
+  const openEditModal = (p) => { setEditingProduct(p);      setModalOpen(true); };
+
+  const handleSaveProduct = async (productData) => {
+    try {
+      if (editingProduct) {
+        const updated = await adminUpdateProduct(editingProduct.id, productData);
+        setProducts((prev) =>
+          prev.map((p) => (p.id === editingProduct.id ? { ...p, ...updated } : p))
+        );
+      } else {
+        const created = await adminCreateProduct(productData);
+        setProducts((prev) => [created, ...prev]);
+      }
+      setModalOpen(false);
+      setEditingProduct(null);
+    } catch (e) {
+      alert(`Save failed: ${e?.message || 'Unknown error'}`);
+    }
   };
 
-  const handleSaveProduct = (productData) => {
-    if (editingProduct) {
-      // TODO (next): PUT /products/{id} (admin)
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm('Delete this product? This cannot be undone.')) return;
+    try {
+      await adminDeleteProduct(productId);
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+    } catch (e) {
+      alert(`Delete failed: ${e?.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleToggleStock = async (productId, inStock) => {
+    try {
+      const updated = await adminToggleStock(productId, inStock);
       setProducts((prev) =>
-        prev.map((p) =>
-          p.id === editingProduct.id ? { ...productData, id: editingProduct.id } : p
-        )
+        prev.map((p) => (p.id === productId ? { ...p, ...(updated || { inStock }) } : p))
       );
-    } else {
-      // TODO (next): POST /products (admin)
-      const newProduct = { ...productData, id: String(Date.now()) };
-      setProducts((prev) => [...prev, newProduct]);
-    }
-    setModalOpen(false);
-    setEditingProduct(null);
-  };
-
-  const handleDeleteProduct = (id) => {
-    // TODO (next): DELETE /products/{id} (admin)
-    if (confirm('Delete this product?')) {
-      setProducts((prev) => prev.filter((p) => p.id !== id));
+    } catch (e) {
+      alert(`Stock update failed: ${e?.message || 'Unknown error'}`);
     }
   };
 
-  const handleToggleStock = (id) => {
-    // TODO (next): PUT /products/{id} (admin) with inStock toggle
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, inStock: !p.inStock } : p))
-    );
+  // ── Orders ────────────────────────────────────────────────────────────────
+  const [orders,        setOrders]        = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError,   setOrdersError]   = useState('');
+
+  const fetchOrders = async () => {
+    setOrdersLoading(true);
+    setOrdersError('');
+    try {
+      const data = await listAllOrdersAdmin();
+      setOrders(data);
+    } catch (e) {
+      setOrdersError(e?.message || 'Failed to load orders.');
+    } finally {
+      setOrdersLoading(false);
+    }
   };
 
-  // ✅ Update order status using admin API
+  useEffect(() => { fetchOrders(); }, []);
+
   const handleUpdateOrder = async (orderId, status) => {
     try {
       const updated = await updateOrderStatusAdmin(orderId, status);
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, ...(updated || { status }) } : o))
+      );
     } catch (e) {
-      console.error('Update order failed:', e);
-      alert('Failed to update order status. Check CloudWatch logs / API response.');
+      alert(`Order update failed: ${e?.message || 'Unknown error'}`);
     }
   };
 
-  const handleChangeRole = async (userId, role) => {
-    // TODO (later): PATCH /admin/users/{id}
-    await mockUpdateUserRole(userId, role);
-    const list = await mockListUsers();
-    setUsers(list);
+  // ── Users ─────────────────────────────────────────────────────────────────
+  const [users,        setUsers]        = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError,   setUsersError]   = useState('');
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    setUsersError('');
+    try {
+      const data = await adminListUsers();
+      setUsers(data);
+    } catch (e) {
+      setUsersError(e?.message || 'Failed to load users.');
+    } finally {
+      setUsersLoading(false);
+    }
   };
 
+  useEffect(() => { fetchUsers(); }, []);
+
+  const handleChangeRole = async (userId, role) => {
+    try {
+      const updated = await adminUpdateUserRole(userId, role);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, ...(updated || { role }) } : u))
+      );
+    } catch (e) {
+      alert(`Role update failed: ${e?.message || 'Unknown error'}`);
+    }
+  };
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const totalRevenue = orders.reduce((sum, o) => sum + (o.totals?.total || 0), 0);
+    return {
+      totalProducts: products.length,
+      totalOrders:   orders.length,
+      totalUsers:    users.length,
+      totalRevenue,
+    };
+  }, [orders, products, users]);
+
   return (
-    <div className="min-h-screen bg-[#FAF7F2]">
-      {/* Header */}
-      <div className="bg-black text-white py-6 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-1">Admin Panel</h1>
-            <p className="text-gray-400 text-sm">Sea of Style — Manage products, orders, and users</p>
-          </div>
-          <Link
-            to={createPageUrl('Home')}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white text-black rounded-full font-medium hover:bg-gray-100 transition-colors text-sm"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Store
-          </Link>
-        </div>
-      </div>
+    <div className="min-h-screen bg-[#FAF7F2] py-12">
+      <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
+        <Link
+          to={createPageUrl('Home')}
+          className="inline-flex items-center gap-2 text-[#111111]/50 hover:text-[#111111] transition-colors mb-8 text-sm font-medium"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to store
+        </Link>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <StatsBar products={products} />
+        <h1
+          className="text-5xl font-black text-black mb-2"
+          style={{ fontFamily: 'Playfair Display, serif' }}
+        >
+          Admin Dashboard
+        </h1>
+        <p className="text-gray-500 mb-8 text-sm">Manage your store</p>
 
-        {/* Extra quick stats */}
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <p className="text-xs font-bold tracking-wider uppercase text-gray-500">Total Orders</p>
-            <p className="text-3xl font-black text-black mt-1">{stats.totalOrders}</p>
-          </div>
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <p className="text-xs font-bold tracking-wider uppercase text-gray-500">Revenue</p>
-            <p className="text-3xl font-black text-black mt-1">${stats.totalRevenue.toFixed(2)}</p>
-          </div>
-        </div>
+        <StatsBar stats={stats} />
 
         {/* Tabs */}
         <div className="mt-10 flex flex-wrap gap-3">
-          <TabButton active={tab === 'products'} onClick={() => setTab('products')} icon={Package} label="Products" />
-          <TabButton active={tab === 'orders'} onClick={() => setTab('orders')} icon={ClipboardList} label="Orders" />
-          <TabButton active={tab === 'users'} onClick={() => setTab('users')} icon={Users} label="Users" />
+          <TabButton active={tab === 'products'} onClick={() => setTab('products')} icon={Package}     label="Products" />
+          <TabButton active={tab === 'orders'}   onClick={() => setTab('orders')}   icon={ClipboardList} label="Orders" />
+          <TabButton active={tab === 'users'}    onClick={() => setTab('users')}    icon={Users}        label="Users" />
         </div>
 
-        {/* Products */}
+        {/* Products Tab */}
         {tab === 'products' && (
           <div className="mt-6">
             <div className="flex items-center justify-between mb-6">
@@ -195,68 +230,67 @@ function AdminContent() {
                 Add Product
               </button>
             </div>
-
-            <ProductsTable
-              products={products}
-              onEdit={openEditModal}
-              onDelete={handleDeleteProduct}
-              onToggleStock={handleToggleStock}
-            />
+            {productsLoading && (
+              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 animate-pulse h-32" />
+            )}
+            {!productsLoading && productsError && (
+              <ErrorBanner message={productsError} onRetry={fetchProducts} />
+            )}
+            {!productsLoading && !productsError && (
+              <ProductsTable
+                products={products}
+                onEdit={openEditModal}
+                onDelete={handleDeleteProduct}
+                onToggleStock={handleToggleStock}
+              />
+            )}
           </div>
         )}
 
-        {/* Orders */}
+        {/* Orders Tab */}
         {tab === 'orders' && (
           <div className="mt-6">
-            <h2 className="text-xl font-bold text-black mb-6">Orders</h2>
-            {ordersLoading ? (
-              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100">Loading orders…</div>
-            ) : orders.length === 0 ? (
-              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100">No orders yet.</div>
-            ) : (
+            <h2 className="text-xl font-bold text-black mb-6">Orders ({orders.length})</h2>
+            {ordersLoading && (
+              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 animate-pulse h-32" />
+            )}
+            {!ordersLoading && ordersError && (
+              <ErrorBanner message={ordersError} onRetry={fetchOrders} />
+            )}
+            {!ordersLoading && !ordersError && orders.length === 0 && (
+              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 text-gray-500">No orders yet.</div>
+            )}
+            {!ordersLoading && !ordersError && orders.length > 0 && (
               <OrdersTable orders={orders} onUpdateStatus={handleUpdateOrder} />
             )}
           </div>
         )}
 
-        {/* Users */}
+        {/* Users Tab */}
         {tab === 'users' && (
           <div className="mt-6">
-            <h2 className="text-xl font-bold text-black mb-6">Users</h2>
-            {usersLoading ? (
-              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100">Loading users…</div>
-            ) : users.length === 0 ? (
-              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100">No users found.</div>
-            ) : (
+            <h2 className="text-xl font-bold text-black mb-6">Users ({users.length})</h2>
+            {usersLoading && (
+              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 animate-pulse h-32" />
+            )}
+            {!usersLoading && usersError && (
+              <ErrorBanner message={usersError} onRetry={fetchUsers} />
+            )}
+            {!usersLoading && !usersError && users.length === 0 && (
+              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 text-gray-500">No users found.</div>
+            )}
+            {!usersLoading && !usersError && users.length > 0 && (
               <UsersTable users={users} onChangeRole={handleChangeRole} />
             )}
           </div>
         )}
-
-        {/* AWS Integration Notes */}
-        <div className="mt-10 p-6 bg-blue-50 border border-blue-100 rounded-2xl">
-          <h3 className="font-bold text-black mb-3">AWS Integration Notes</h3>
-          <ul className="text-sm text-gray-700 space-y-1.5">
-            <li>
-              • <strong>Auth:</strong> Admin endpoints require Cognito JWT + Admin group check
-            </li>
-            <li>• <strong>Products:</strong> CRUD via API Gateway → Lambda → DynamoDB</li>
-            <li>• <strong>Orders:</strong> Admin reads via <code className="bg-white px-1 rounded">/admin/orders</code></li>
-            <li>• <strong>Users:</strong> Admin via <code className="bg-white px-1 rounded">/admin/users</code> (later)</li>
-            <li>• <strong>Images:</strong> S3 uploads + CloudFront CDN</li>
-            <li>• <strong>Stripe:</strong> Sessions created by Lambda; webhooks via <code className="bg-white px-1 rounded">/webhooks/stripe</code></li>
-          </ul>
-        </div>
       </div>
 
       {modalOpen && (
         <ProductFormModal
           product={editingProduct}
           onSave={handleSaveProduct}
-          onClose={() => {
-            setModalOpen(false);
-            setEditingProduct(null);
-          }}
+          onClose={() => { setModalOpen(false); setEditingProduct(null); }}
         />
       )}
     </div>

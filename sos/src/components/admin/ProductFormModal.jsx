@@ -1,60 +1,98 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, ImageIcon } from 'lucide-react';
-import { categories } from '../mockData';
+import { X, Upload, ImageIcon, Loader2 } from 'lucide-react';
+import { adminUploadProductImage } from '@/services/products';
+
+const CATEGORIES = ['Tops', 'Bottoms', 'Dresses', 'Outerwear', 'Swimwear', 'Footwear', 'Accessories'];
 
 const SIZES_BY_CATEGORY = {
-  Tops: ['XS', 'S', 'M', 'L', 'XL'],
-  Bottoms: ['XS', 'S', 'M', 'L', 'XL'],
-  Dresses: ['XS', 'S', 'M', 'L', 'XL'],
-  Outerwear: ['XS', 'S', 'M', 'L', 'XL'],
-  Swimwear: ['XS', 'S', 'M', 'L', 'XL'],
-  Footwear: ['6', '7', '8', '9', '10', '11'],
+  Tops:        ['XS', 'S', 'M', 'L', 'XL'],
+  Bottoms:     ['XS', 'S', 'M', 'L', 'XL'],
+  Dresses:     ['XS', 'S', 'M', 'L', 'XL'],
+  Outerwear:   ['XS', 'S', 'M', 'L', 'XL'],
+  Swimwear:    ['XS', 'S', 'M', 'L', 'XL'],
+  Footwear:    ['6', '7', '8', '9', '10', '11'],
   Accessories: ['One Size'],
 };
 
 const EMPTY_FORM = {
-  name: '', description: '', price: '', category: 'Tops', image: '', sizes: [], inStock: true
+  name: '', description: '', price: '', category: 'Tops', image: '', sizes: [], inStock: true,
 };
 
 export default function ProductFormModal({ product, onSave, onClose }) {
   const isEdit = !!product;
-  const [form, setForm] = useState(isEdit ? { ...product, price: String(product.price) } : EMPTY_FORM);
+  const [form,          setForm]          = useState(isEdit ? { ...product, price: String(product.price) } : EMPTY_FORM);
+  const [uploading,     setUploading]     = useState(false);
+  const [uploadError,   setUploadError]   = useState('');
+  const [saving,        setSaving]        = useState(false);
 
-  // When category changes, reset sizes
   const handleCategoryChange = (cat) => {
-    setForm(f => ({ ...f, category: cat, sizes: [] }));
+    setForm((f) => ({ ...f, category: cat, sizes: [] }));
   };
 
   const toggleSize = (size) => {
-    setForm(f => ({
+    setForm((f) => ({
       ...f,
-      sizes: f.sizes.includes(size) ? f.sizes.filter(s => s !== size) : [...f.sizes, size]
+      sizes: f.sizes.includes(size) ? f.sizes.filter((s) => s !== size) : [...f.sizes, size],
     }));
   };
 
-  const handleImageUpload = (e) => {
+  /**
+   * Image upload flow:
+   *  1. GET /admin/products/upload-url (pre-signed S3 URL)
+   *  2. PUT file directly to S3
+   *  3. Store returned CloudFront URL in form.image
+   */
+  const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // PRODUCTION: POST /admin/products/image-upload-url → S3 pre-signed PUT → CloudFront URL
-    const mockUrl = `https://d123example.cloudfront.net/products/${Date.now()}-${file.name}`;
-    setForm(f => ({ ...f, image: mockUrl }));
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please select an image file (JPG, PNG, WebP).');
+      return;
+    }
+    // Validate file size (max 5 MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('Image must be under 5 MB.');
+      return;
+    }
+
+    setUploadError('');
+    setUploading(true);
+    try {
+      const publicUrl = await adminUploadProductImage(file);
+      setForm((f) => ({ ...f, image: publicUrl }));
+    } catch (err) {
+      setUploadError(err?.message || 'Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.image) {
+      setUploadError('Please upload a product image.');
+      return;
+    }
+    setSaving(true);
     const availableSizes = SIZES_BY_CATEGORY[form.category] || ['One Size'];
-    onSave({
+    await onSave({
       ...form,
       price: parseFloat(form.price),
       sizes: form.sizes.length > 0 ? form.sizes : availableSizes,
     });
+    setSaving(false);
   };
 
   const availableSizes = SIZES_BY_CATEGORY[form.category] || ['One Size'];
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-3xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div
+        className="bg-white rounded-3xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-black">{isEdit ? 'Edit Product' : 'Add New Product'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -69,7 +107,7 @@ export default function ProductFormModal({ product, onSave, onClose }) {
               <input
                 type="text"
                 value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 required
                 className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-orange-500 focus:outline-none"
                 placeholder="e.g. Summer Breeze Shirt"
@@ -79,13 +117,13 @@ export default function ProductFormModal({ product, onSave, onClose }) {
               <label className="block font-bold text-black mb-2">Price ($)</label>
               <input
                 type="number"
-                step="0.01"
-                min="0"
                 value={form.price}
-                onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
                 required
+                min="0.01"
+                step="0.01"
                 className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-orange-500 focus:outline-none"
-                placeholder="0.00"
+                placeholder="99.99"
               />
             </div>
           </div>
@@ -94,92 +132,142 @@ export default function ProductFormModal({ product, onSave, onClose }) {
             <label className="block font-bold text-black mb-2">Description</label>
             <textarea
               value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               required
               rows={3}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-orange-500 focus:outline-none resize-none"
-              placeholder="Product description..."
+              placeholder="Describe the product..."
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block font-bold text-black mb-2">Category</label>
-              <select
-                value={form.category}
-                onChange={e => handleCategoryChange(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-orange-500 focus:outline-none"
-              >
-                {categories.slice(1).map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-end">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <div
-                  onClick={() => setForm(f => ({ ...f, inStock: !f.inStock }))}
-                  className={`w-14 h-7 rounded-full transition-colors relative ${form.inStock ? 'bg-green-500' : 'bg-gray-300'}`}
+          {/* Category */}
+          <div>
+            <label className="block font-bold text-black mb-2">Category</label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => handleCategoryChange(cat)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    form.category === cat
+                      ? 'bg-black text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
                 >
-                  <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${form.inStock ? 'translate-x-7' : 'translate-x-0.5'}`} />
-                </div>
-                <span className="font-bold text-black">{form.inStock ? 'In Stock' : 'Out of Stock'}</span>
-              </label>
+                  {cat}
+                </button>
+              ))}
             </div>
           </div>
 
+          {/* Sizes */}
           <div>
-            <label className="block font-bold text-black mb-2">Sizes</label>
+            <label className="block font-bold text-black mb-2">
+              Sizes <span className="text-gray-400 font-normal text-sm">(select all that apply)</span>
+            </label>
             <div className="flex flex-wrap gap-2">
-              {availableSizes.map(size => (
+              {availableSizes.map((size) => (
                 <button
                   key={size}
                   type="button"
                   onClick={() => toggleSize(size)}
-                  className={`px-4 py-2 rounded-lg border-2 font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                     form.sizes.includes(size)
-                      ? 'bg-black text-white border-black'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   {size}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Leave blank to include all sizes</p>
+            <p className="text-xs text-gray-500 mt-1">
+              If none selected, all sizes for this category will be available.
+            </p>
           </div>
 
+          {/* Image Upload */}
           <div>
             <label className="block font-bold text-black mb-2">Product Image</label>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 px-5 py-3 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors">
-                <Upload className="w-5 h-5" />
-                Upload Image
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+
+            {form.image ? (
+              <div className="relative">
+                <img
+                  src={form.image}
+                  alt="Product preview"
+                  className="w-full h-48 object-cover rounded-xl border-2 border-gray-200"
+                  onError={(e) => { e.target.src = 'https://via.placeholder.com/400x400?text=Image'; }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, image: '' }))}
+                  className="absolute top-2 right-2 p-1.5 bg-white rounded-full shadow-md hover:bg-red-50 transition-colors"
+                >
+                  <X className="w-4 h-4 text-red-500" />
+                </button>
+              </div>
+            ) : (
+              <label className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
+                uploading ? 'border-orange-300 bg-orange-50' : 'border-gray-300 hover:border-orange-400 hover:bg-orange-50'
+              }`}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploading}
+                  className="hidden"
+                />
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-8 h-8 text-orange-500 animate-spin mb-2" />
+                    <p className="text-sm text-orange-600 font-medium">Uploading to S3…</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 font-medium">Click to upload image</p>
+                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, WebP — max 5 MB</p>
+                  </>
+                )}
               </label>
-              {form.image && (
-                <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
-                  <ImageIcon className="w-4 h-4" />
-                  Image ready
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Production: uploads to S3 via pre-signed URL, served via CloudFront</p>
+            )}
+
+            {uploadError && (
+              <p className="mt-2 text-sm text-red-600">{uploadError}</p>
+            )}
           </div>
 
+          {/* In Stock */}
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="inStock"
+              checked={form.inStock}
+              onChange={(e) => setForm((f) => ({ ...f, inStock: e.target.checked }))}
+              className="w-5 h-5 accent-orange-500"
+            />
+            <label htmlFor="inStock" className="font-medium text-black cursor-pointer">
+              In Stock
+            </label>
+          </div>
+
+          {/* Actions */}
           <div className="flex gap-3 pt-2">
-            <button
-              type="submit"
-              className="flex-1 py-3 bg-black text-white rounded-full font-bold hover:bg-orange-500 transition-colors"
-            >
-              {isEdit ? 'Save Changes' : 'Add Product'}
-            </button>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 bg-gray-100 text-black rounded-full font-bold hover:bg-gray-200 transition-colors"
+              className="flex-1 py-3 border-2 border-gray-200 rounded-full font-bold text-gray-700 hover:bg-gray-50 transition-colors"
             >
               Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={uploading || saving}
+              className="flex-1 py-3 bg-black text-white rounded-full font-bold hover:bg-orange-500 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Product'}
             </button>
           </div>
         </form>

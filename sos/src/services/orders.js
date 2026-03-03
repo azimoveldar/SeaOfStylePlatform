@@ -1,26 +1,42 @@
-import { api } from "./apiClient";
+/**
+ * services/orders.js
+ *
+ * All order-related API calls.
+ * API shape:
+ *   GET  /orders             → { items: Order[] } | Order[]  (user's own orders)
+ *   GET  /admin/orders       → { items: Order[] } | Order[]  (all orders, admin only)
+ *   PUT  /admin/orders/{id}  → Order  (update status, admin only)
+ */
 
-/** USER */
-export function listOrdersForUser() {
-  return api("/orders", { method: "GET" });
+import { apiGet, apiPut } from './apiClient';
+
+function extractList(data) {
+  if (Array.isArray(data))        return data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
 }
 
-/** ADMIN (your API has /admin/{proxy+}) */
-export function listAllOrdersAdmin() {
-  return api("/admin/orders", { method: "GET" });
+// ─── User ──────────────────────────────────────────────────────────────────────
+
+/** List the authenticated user's own orders */
+export async function listOrdersForUser() {
+  const data = await apiGet('/orders');
+  return extractList(data);
 }
 
-export function updateOrderStatusAdmin(orderId, status) {
-  return api(`/admin/orders/${orderId}`, {
-    method: "PUT",
-    body: JSON.stringify({ status }),
-  });
+// ─── Admin ─────────────────────────────────────────────────────────────────────
+
+/** List ALL orders (admin) */
+export async function listAllOrdersAdmin() {
+  const data = await apiGet('/admin/orders');
+  return extractList(data);
 }
 
-/* ✅ compatibility exports (if any old code still imports these) */
-export function listAllOrders() {
-  return listAllOrdersAdmin();
+/** Update an order's status (admin) */
+export async function updateOrderStatusAdmin(orderId, status) {
+  return apiPut(`/admin/orders/${orderId}`, { status });
 }
-export function updateOrderStatus(orderId, status) {
-  return updateOrderStatusAdmin(orderId, status);
-}
+
+// Compatibility aliases
+export const listAllOrders    = listAllOrdersAdmin;
+export const updateOrderStatus = updateOrderStatusAdmin;
