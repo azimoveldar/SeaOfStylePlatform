@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, Component } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, ArrowLeft, Package, Users, ClipboardList, AlertCircle } from 'lucide-react';
 import { createPageUrl } from '@/utils';
@@ -18,6 +18,32 @@ import {
 } from '@/services/products';
 import { listAllOrdersAdmin, updateOrderStatusAdmin } from '@/services/orders';
 import { adminListUsers, adminUpdateUserRole } from '@/services/users';
+
+// ── Error Boundary ────────────────────────────────────────────────────────────
+class AdminErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold mb-2 text-black">Admin Panel Error</h2>
+            <p className="text-gray-600 text-sm mb-4">{this.state.error?.message || 'An unexpected error occurred.'}</p>
+            <button
+              onClick={() => this.setState({ error: null })}
+              className="px-6 py-2 bg-black text-white rounded-full font-semibold text-sm hover:bg-orange-500 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function TabButton({ active, onClick, icon: Icon, label }) {
   return (
@@ -299,8 +325,10 @@ function AdminContent() {
 
 export default function Admin() {
   return (
-    <ProtectedRoute requireAdmin>
-      <AdminContent />
-    </ProtectedRoute>
+    <AdminErrorBoundary>
+      <ProtectedRoute requireAdmin>
+        <AdminContent />
+      </ProtectedRoute>
+    </AdminErrorBoundary>
   );
 }

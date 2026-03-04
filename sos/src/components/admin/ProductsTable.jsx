@@ -37,7 +37,7 @@ export default function ProductsTable({ products, onEdit, onDelete, onToggleStoc
                 <td className="px-6 py-4 font-bold text-black">${product.price.toFixed(2)}</td>
                 <td className="px-6 py-4 hidden sm:table-cell">
                   <button
-                    onClick={() => onToggleStock(product.id)}
+                    onClick={() => onToggleStock(product.id, !product.inStock)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                       product.inStock
                         ? 'bg-green-100 text-green-700 hover:bg-green-200'
