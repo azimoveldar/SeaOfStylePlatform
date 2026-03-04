@@ -3,83 +3,68 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { useCart } from '@/components/CartContext';
-import { useAuth } from '@/components/AuthContext';
 import { apiPost } from '@/services/apiClient';
 
 /**
  * CheckoutSuccess
  *
- * Stripe redirects here after successful payment with:
- *   ?session_id={CHECKOUT_SESSION_ID}
+ * Stripe redirects here after a successful payment with ?session_id=...
  *
  * Flow:
- *  1. Read cart items (they're still in state when Stripe redirects back)
- *  2. POST /orders to create the order record with items + session_id
- *  3. Clear the cart
+ *  1. Read cart snapshot from sessionStorage (saved by Checkout.jsx before redirect)
+ *  2. POST /orders → Lambda upserts the webhook-created order with real items
+ *  3. Clear the cart + sessionStorage snapshot
  */
 export default function CheckoutSuccess() {
-  const [searchParams]  = useSearchParams();
-  const { items, getTotal, clearCart } = useCart();
-  const { user }        = useAuth();
-  const sessionId       = searchParams.get('session_id');
+  const [searchParams] = useSearchParams();
+  const { clearCart }  = useCart();
+  const sessionId      = searchParams.get('session_id');
 
-  const [orderSaved,  setOrderSaved]  = useState(false);
-  const [orderId,     setOrderId]     = useState(null);
-  const [saveError,   setSaveError]   = useState('');
-  const didRun = useRef(false);   // prevent double-fire in React StrictMode
+  const [done,      setDone]      = useState(false);
+  const [orderId,   setOrderId]   = useState(null);
+  const [saveError, setSaveError] = useState('');
+  const ran = useRef(false);
 
   useEffect(() => {
-    if (didRun.current) return;
-    didRun.current = true;
+    if (ran.current) return;
+    ran.current = true;
 
     async function saveOrder() {
       try {
-        // Read the cart snapshot saved in Checkout.jsx before the Stripe redirect.
-        // By the time Stripe redirects here, the React cart state is empty (new page load).
-        let orderItems = [];
+        // Read cart snapshot saved before Stripe redirect.
+        // When Stripe redirects back it is a fresh page load so React cart is empty.
+        // Checkout.jsx saves items to sessionStorage right before window.location.href = url.
+        let orderItems  = [];
         let orderTotals = { subtotal: 0, shipping: 0, total: 0 };
 
         try {
-          const snapshot = sessionStorage.getItem('sos_checkout_cart');
-          if (snapshot) {
-            const parsed = JSON.parse(snapshot);
-            orderItems  = parsed.items  || [];
-            orderTotals = parsed.totals || orderTotals;
+          const raw = sessionStorage.getItem('sos_checkout_cart');
+          if (raw) {
+            const snap  = JSON.parse(raw);
+            orderItems  = Array.isArray(snap.items)  ? snap.items  : [];
+            orderTotals = snap.totals || orderTotals;
           }
-        } catch { /* ignore parse errors */ }
-
-        // Also include any items still in React cart state (fallback)
-        if (orderItems.length === 0 && items && items.length > 0) {
-          const subtotal = getTotal();
-          const shipping = subtotal > 100 ? 0 : (subtotal === 0 ? 0 : 10);
-          orderTotals = { subtotal, shipping, total: subtotal + shipping };
-          orderItems  = items.map(i => ({
-            productId: i.product?.id || i.productId || '',
-            name:      i.product?.name || i.name || '',
-            price:     i.product?.price ?? i.price ?? 0,
-            image:     i.product?.image || i.image || '',
-            size:      i.size || '',
-            quantity:  i.quantity || 1,
-          }));
+        } catch (e) {
+          console.warn('Could not read sessionStorage cart snapshot:', e.message);
         }
 
-        const payload = {
+        console.log('CheckoutSuccess: items=' + orderItems.length + ' sessionId=' + sessionId);
+
+        const result = await apiPost('/orders', {
           items:           orderItems,
           totals:          orderTotals,
           stripeSessionId: sessionId || null,
-        };
+        });
 
-        const result = await apiPost('/orders', payload);
         setOrderId(result?.orderId || result?.id || null);
 
-        // Clear the sessionStorage snapshot now that order is saved
         try { sessionStorage.removeItem('sos_checkout_cart'); } catch {}
+
       } catch (err) {
-        // Non-fatal: order might already exist from webhook
-        console.warn('Order save failed (may already exist via webhook):', err.message);
+        console.warn('Order save error (non-fatal):', err.message);
         setSaveError(err.message);
       } finally {
-        setOrderSaved(true);
+        setDone(true);
         clearCart();
       }
     }
@@ -92,7 +77,7 @@ export default function CheckoutSuccess() {
     <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center px-6 py-20">
       <div className="max-w-xl w-full bg-white rounded-2xl shadow-sm p-10 text-center">
 
-        {!orderSaved ? (
+        {!done ? (
           <div className="flex flex-col items-center gap-4 py-8">
             <Loader2 className="w-10 h-10 text-orange-500 animate-spin" />
             <p className="text-gray-600">Confirming your order…</p>
@@ -124,7 +109,7 @@ export default function CheckoutSuccess() {
 
             {sessionId && !orderId && (
               <div className="mb-4 p-4 bg-[#F5EFE0] rounded-xl text-sm">
-                <span className="text-gray-700">Stripe Session: </span>
+                <span className="text-gray-700">Session: </span>
                 <span className="font-mono font-bold text-xs break-all">{sessionId}</span>
               </div>
             )}

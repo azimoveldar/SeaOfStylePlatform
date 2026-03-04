@@ -166,7 +166,7 @@ function AdminContent() {
     try {
       const updated = await updateOrderStatusAdmin(orderId, status);
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, ...(updated || { status }) } : o))
+        prev.map((o) => ((o.id === orderId || o.orderId === orderId) ? { ...o, ...(updated || { status }) } : o))
       );
     } catch (e) {
       alert(`Order update failed: ${e?.message || 'Unknown error'}`);
