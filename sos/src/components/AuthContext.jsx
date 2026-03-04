@@ -9,14 +9,13 @@ import {
 /**
  * AuthContext — Production Cognito implementation
  *
- * Environment variables required:
- *   VITE_AUTH_PROVIDER              = "cognito"
- *   VITE_COGNITO_REGION             = "ca-central-1"
- *   VITE_COGNITO_USER_POOL_ID       = "ca-central-1_xxxxxxxxx"
- *   VITE_COGNITO_USER_POOL_CLIENT_ID = "xxxxxxxxxxxxxxxxxxxxxxxxxx"
- *
- * Admin detection: checks cognito:groups claim in the ID token for "sos-admins".
- * Falls back gracefully to mock if VITE_AUTH_PROVIDER is not set.
+ * FIXES applied:
+ *  1. Admin detection reads custom:role attribute (not cognito:groups)
+ *  2. buildAppUser name fallback order: name → given_name → email (never the sub UUID)
+ *  3. cognitoUpdateProfile uses pool.getCurrentUser() — not new CognitoUser(email)
+ *     Creating a new CognitoUser by email loses the active session stored in
+ *     localStorage by amazon-cognito-identity-js, so updates silently failed.
+ *  4. cognitoChangePassword same fix — uses pool.getCurrentUser()
  */
 
 const AuthContext = createContext(null);
@@ -27,10 +26,9 @@ export const useAuth = () => {
   return ctx;
 };
 
-// ─── Cognito config ──────────────────────────────────────────────────────────
-const COGNITO_REGION = import.meta.env.VITE_COGNITO_REGION;
-const USER_POOL_ID   = import.meta.env.VITE_COGNITO_USER_POOL_ID;
-const CLIENT_ID      =
+// ─── Cognito config ───────────────────────────────────────────────────────────
+const USER_POOL_ID = import.meta.env.VITE_COGNITO_USER_POOL_ID;
+const CLIENT_ID =
   import.meta.env.VITE_COGNITO_USER_POOL_CLIENT_ID ||
   import.meta.env.VITE_COGNITO_CLIENT_ID;
 
@@ -52,32 +50,44 @@ function mapAttrs(attrs = []) {
 }
 
 /**
- * Parse the ID token payload to extract Cognito Groups.
- * We use the ID token (not access token) because it carries custom attributes
- * and group membership in cognito:groups.
+ * Build the app user object from Cognito session + getUserAttributes().
+ *
+ * Admin detection:
+ *   Primary:  custom:role attribute === 'admin'   ← YOUR SETUP
+ *   Fallback: cognito:groups includes 'sos-admins' in the ID token
+ *
+ * Name resolution (never falls back to the sub UUID):
+ *   name attribute → given_name attribute → email
  */
-function parseIdTokenPayload(session) {
-  try {
-    const idToken = session.getIdToken().getJwtToken();
-    const payload = JSON.parse(atob(idToken.split('.')[1]));
-    return payload;
-  } catch {
-    return {};
-  }
-}
-
-/** Build the app user object from Cognito session + attributes */
 function buildAppUser(cognitoUser, session, attrsObj) {
-  const idPayload = parseIdTokenPayload(session);
-  const groups    = idPayload['cognito:groups'] || [];
-  const isAdmin   = groups.includes('sos-admins');
+  // ── Admin detection via custom:role attribute ─────────────────────────────
+  const customRole = attrsObj['custom:role'] || '';
+  let isAdmin = customRole === 'admin';
+
+  // Also check cognito:groups in ID token as fallback
+  if (!isAdmin) {
+    try {
+      const idToken = session.getIdToken().getJwtToken();
+      const payload = JSON.parse(atob(idToken.split('.')[1]));
+      const groups  = payload['cognito:groups'] || [];
+      if (groups.includes('sos-admins')) isAdmin = true;
+    } catch {
+      // ignore — ID token parse errors are non-fatal
+    }
+  }
+
+  // ── Name: never use the sub UUID as display name ──────────────────────────
+  const displayName =
+    attrsObj['name'] ||
+    attrsObj['given_name'] ||
+    attrsObj['email'] ||
+    cognitoUser.getUsername();
 
   return {
-    id:        attrsObj.sub || cognitoUser.getUsername(),
-    email:     attrsObj.email || cognitoUser.getUsername(),
-    name:      attrsObj.name || attrsObj.given_name || cognitoUser.getUsername(),
+    id:        attrsObj['sub'] || cognitoUser.getUsername(),
+    email:     attrsObj['email'] || cognitoUser.getUsername(),
+    name:      displayName,
     role:      isAdmin ? 'admin' : 'user',
-    groups,
     createdAt: new Date().toISOString(),
   };
 }
@@ -110,8 +120,8 @@ async function cognitoLogin(email, password) {
 
   const session = await new Promise((resolve, reject) => {
     cognitoUser.authenticateUser(details, {
-      onSuccess:          (s) => resolve(s),
-      onFailure:          (err) => reject(err),
+      onSuccess:           (s) => resolve(s),
+      onFailure:           (err) => reject(err),
       newPasswordRequired: () =>
         reject(new Error('A new password is required. Please use the forgot password flow.')),
     });
@@ -138,11 +148,10 @@ async function cognitoSignup(email, password, name) {
       (err) => (err ? reject(err) : resolve(true))
     );
   });
-  // Returns true; user must confirm email before logging in
   return true;
 }
 
-/** Confirm signup with the 6-digit code from email */
+/** Confirm signup with the 6-digit code Cognito emails */
 export async function cognitoConfirmSignup(email, code) {
   const pool        = getUserPool();
   const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
@@ -170,45 +179,70 @@ async function cognitoLogout() {
   if (current) current.signOut();
 }
 
-async function cognitoUpdateProfile(currentUser, updates) {
-  const pool        = getUserPool();
-  const cognitoUser = new CognitoUser({ Username: currentUser.email, Pool: pool });
+/**
+ * FIX: Update Cognito name/email attributes.
+ *
+ * MUST use pool.getCurrentUser() — not new CognitoUser({ Username: email }).
+ *
+ * Why: amazon-cognito-identity-js stores the session tokens in localStorage
+ * keyed by the pool's lastAuthUser (which is the internal Cognito username,
+ * often the sub UUID, not the email). Creating a new CognitoUser with the
+ * email address as Username looks up the wrong localStorage key, so
+ * getSession() returns nothing → updateAttributes is never called →
+ * name never changes, and the sub UUID keeps showing.
+ *
+ * pool.getCurrentUser() reads the correct lastAuthUser key and restores
+ * the session properly.
+ */
+async function cognitoUpdateProfile(updates) {
+  const pool    = getUserPool();
+  const current = pool.getCurrentUser(); // ← correct: uses stored lastAuthUser
+  if (!current) throw new Error('Not authenticated. Please sign in again.');
 
-  // Restore session (user must be authenticated)
   await new Promise((resolve, reject) => {
-    cognitoUser.getSession((err, s) =>
-      err || !s?.isValid() ? reject(err || new Error('Not authenticated')) : resolve(s)
+    current.getSession((err, s) =>
+      err || !s?.isValid()
+        ? reject(err || new Error('Session expired. Please sign in again.'))
+        : resolve(s)
     );
   });
 
   const attributeList = [];
-  if (updates.name)  attributeList.push(new CognitoUserAttribute({ Name: 'name',  Value: updates.name }));
-  if (updates.email) attributeList.push(new CognitoUserAttribute({ Name: 'email', Value: updates.email }));
+  if (updates.name  != null && updates.name  !== '')
+    attributeList.push(new CognitoUserAttribute({ Name: 'name',  Value: updates.name }));
+  if (updates.email != null && updates.email !== '')
+    attributeList.push(new CognitoUserAttribute({ Name: 'email', Value: updates.email }));
 
-  if (attributeList.length === 0) return currentUser;
+  if (attributeList.length === 0) return cognitoGetCurrentUser();
 
   await new Promise((resolve, reject) => {
-    cognitoUser.updateAttributes(attributeList, (err) =>
+    current.updateAttributes(attributeList, (err) =>
       err ? reject(err) : resolve(true)
     );
   });
 
-  // Re-fetch fresh attributes
+  // Re-fetch so returned user reflects the new name immediately
   return cognitoGetCurrentUser();
 }
 
-async function cognitoChangePassword(currentUser, oldPassword, newPassword) {
-  const pool        = getUserPool();
-  const cognitoUser = new CognitoUser({ Username: currentUser.email, Pool: pool });
+/**
+ * FIX: Change password — same pool.getCurrentUser() fix as updateProfile.
+ */
+async function cognitoChangePassword(oldPassword, newPassword) {
+  const pool    = getUserPool();
+  const current = pool.getCurrentUser(); // ← correct
+  if (!current) throw new Error('Not authenticated. Please sign in again.');
 
   await new Promise((resolve, reject) => {
-    cognitoUser.getSession((err, s) =>
-      err || !s?.isValid() ? reject(err || new Error('Not authenticated')) : resolve(s)
+    current.getSession((err, s) =>
+      err || !s?.isValid()
+        ? reject(err || new Error('Session expired. Please sign in again.'))
+        : resolve(s)
     );
   });
 
   return new Promise((resolve, reject) => {
-    cognitoUser.changePassword(oldPassword, newPassword, (err) =>
+    current.changePassword(oldPassword, newPassword, (err) =>
       err ? reject(err) : resolve(true)
     );
   });
@@ -218,9 +252,9 @@ async function cognitoChangePassword(currentUser, oldPassword, newPassword) {
 const CURRENT_USER_KEY = 'sos_current_user_v1';
 const USERS_KEY        = 'sos_users_v1';
 
-function readUsers()  { try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); } catch { return []; } }
-function writeUsers(u){ localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
-function readCurrentUser() { try { return JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || 'null'); } catch { return null; } }
+function readUsers()         { try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); }         catch { return []; }   }
+function writeUsers(u)       { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
+function readCurrentUser()   { try { return JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || 'null'); } catch { return null; } }
 function writeCurrentUser(u) { localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(u)); }
 
 function seedAdminIfNeeded() {
@@ -235,7 +269,7 @@ async function mockLogin(email, password) {
   await new Promise((r) => setTimeout(r, 450));
   const users = readUsers();
   const user  = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (!user)                  throw new Error('No account found for that email.');
+  if (!user)                      throw new Error('No account found for that email.');
   if (user.password !== password) throw new Error('Incorrect password.');
   const safe = { id: user.id, email: user.email, name: user.name, role: user.role, createdAt: user.createdAt };
   writeCurrentUser(safe);
@@ -244,36 +278,38 @@ async function mockLogin(email, password) {
 
 async function mockSignup(email, password, name) {
   await new Promise((r) => setTimeout(r, 450));
-  const users  = readUsers();
-  if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) throw new Error('That email is already registered.');
-  const role   = email.toLowerCase().includes('admin') ? 'admin' : 'user';
-  const user   = { id: `u_${Math.random().toString(36).slice(2, 9)}`, email, name, role, password, createdAt: new Date().toISOString() };
+  const users = readUsers();
+  if (users.some((u) => u.email.toLowerCase() === email.toLowerCase()))
+    throw new Error('That email is already registered.');
+  const role = email.toLowerCase().includes('admin') ? 'admin' : 'user';
+  const user = { id: `u_${Math.random().toString(36).slice(2, 9)}`, email, name, role, password, createdAt: new Date().toISOString() };
   writeUsers([user, ...users]);
-  const safe   = { id: user.id, email: user.email, name: user.name, role: user.role, createdAt: user.createdAt };
+  const safe = { id: user.id, email: user.email, name: user.name, role: user.role, createdAt: user.createdAt };
   writeCurrentUser(safe);
   return safe;
 }
 
-async function mockLogout()                          { localStorage.removeItem(CURRENT_USER_KEY); }
+async function mockLogout() { localStorage.removeItem(CURRENT_USER_KEY); }
+
 async function mockUpdateProfile(currentUser, updates) {
-  const users   = readUsers();
-  const next    = users.map((u) => (u.id === currentUser.id ? { ...u, ...updates } : u));
+  const users     = readUsers();
+  const next      = users.map((u) => (u.id === currentUser.id ? { ...u, ...updates } : u));
   writeUsers(next);
   const refreshed = next.find((u) => u.id === currentUser.id);
   const safe = { id: refreshed.id, email: refreshed.email, name: refreshed.name, role: refreshed.role, createdAt: refreshed.createdAt };
   writeCurrentUser(safe);
   return safe;
 }
+
 async function mockChangePassword(currentUser, oldPassword, newPassword) {
   const users = readUsers();
   const me    = users.find((u) => u.id === currentUser.id);
-  if (!me)                     throw new Error('User not found.');
+  if (!me)                         throw new Error('User not found.');
   if (me.password !== oldPassword) throw new Error('Current password is incorrect.');
   writeUsers(users.map((u) => (u.id === currentUser.id ? { ...u, password: newPassword } : u)));
   return true;
 }
 
-// Admin helpers (mock only — in production admin user management goes through /admin/users API)
 export async function mockListUsers() {
   await new Promise((r) => setTimeout(r, 200));
   return readUsers().map(({ password, ...rest }) => rest);
@@ -292,10 +328,9 @@ export const AuthProvider = ({ children }) => {
   const [user,    setUser]    = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const provider = import.meta.env.VITE_AUTH_PROVIDER || 'mock';
+  const provider  = import.meta.env.VITE_AUTH_PROVIDER || 'mock';
   const isCognito = provider === 'cognito';
 
-  // On mount: restore session
   useEffect(() => {
     (async () => {
       try {
@@ -327,10 +362,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  /**
-   * signup: returns { needsConfirmation: true, email } for Cognito (email verification required)
-   *         returns user object directly for mock.
-   */
   const signup = async (email, password, name) => {
     setLoading(true);
     try {
@@ -361,7 +392,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const u = isCognito
-        ? await cognitoUpdateProfile(user, updates)
+        ? await cognitoUpdateProfile(updates)         // no longer needs currentUser param
         : await mockUpdateProfile(user, updates);
       setUser(u);
       return u;
@@ -375,28 +406,10 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       return isCognito
-        ? await cognitoChangePassword(user, oldPassword, newPassword)
+        ? await cognitoChangePassword(oldPassword, newPassword) // no longer needs currentUser param
         : await mockChangePassword(user, oldPassword, newPassword);
     } finally {
       setLoading(false);
-    }
-  };
-
-  /** Get the current Cognito access token (for apiClient) */
-  const getAccessToken = async () => {
-    if (!isCognito) return null;
-    try {
-      const pool    = getUserPool();
-      const current = pool.getCurrentUser();
-      if (!current) return null;
-      return new Promise((resolve) => {
-        current.getSession((err, session) => {
-          if (err || !session?.isValid()) return resolve(null);
-          resolve(session.getAccessToken().getJwtToken());
-        });
-      });
-    } catch {
-      return null;
     }
   };
 
@@ -411,7 +424,6 @@ export const AuthProvider = ({ children }) => {
       logout,
       updateProfile,
       changePassword,
-      getAccessToken,
       authProvider: provider,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
