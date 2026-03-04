@@ -15,14 +15,6 @@ const S3_BASE = (import.meta.env.VITE_S3_IMAGES_BASE_URL || '').replace(/\/$/, '
  *   - S3 key like "products/uuid.jpg"  →  prepend S3_BASE
  *   - Empty / null    →  use placeholder
  */
-function resolveImageUrl(raw) {
-  if (!raw) return PLACEHOLDER;
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-  if (raw.startsWith('data:')) return raw;
-  // Relative key — prepend S3 base URL
-  if (S3_BASE) return `${S3_BASE}/${raw.replace(/^\//, '')}`;
-  return PLACEHOLDER;
-}
 
 export default function ProductCard({ product }) {
   const [imgSrc, setImgSrc] = useState(() => resolveImageUrl(product.image));
