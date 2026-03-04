@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pencil, Trash2, CheckCircle, XCircle } from 'lucide-react';
-import { resolveImageUrl } from '../../utils/resolveImageUrl';
+import { resolveImageUrl } from '@/utils/resolveImageUrl';
 
 export default function ProductsTable({ products, onEdit, onDelete, onToggleStock }) {
   return (

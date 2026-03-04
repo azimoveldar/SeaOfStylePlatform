@@ -4,6 +4,7 @@ import { ArrowLeft, ShoppingBag, Check, AlertCircle } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { useCart } from '../components/CartContext';
 import { getProduct } from '@/services/products';
+import { resolveImageUrl } from '@/utils/resolveImageUrl';
 
 /**
  * ProductDetail — fetches a single product from GET /products/{id}
@@ -107,7 +108,7 @@ export default function ProductDetail() {
           <div className="bg-[#EDE8DF] rounded-3xl overflow-hidden">
             <div className="aspect-square">
               <img
-                src={product.image}
+                src={resolveImageUrl(product.image)}
                 alt={product.name}
                 className="w-full h-full object-cover"
                 onError={(e) => { e.target.src = 'https://via.placeholder.com/800x800?text=No+Image'; }}

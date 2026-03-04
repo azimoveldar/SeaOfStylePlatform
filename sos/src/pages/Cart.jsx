@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { useCart } from '../components/CartContext';
+import { resolveImageUrl } from '@/utils/resolveImageUrl';
 
 export default function Cart() {
   const { items, updateQuantity, removeItem, getTotal } = useCart();
@@ -53,7 +54,7 @@ export default function Cart() {
             {items.map((item) => (
               <div key={`${item.product.id}-${item.size}`} className="bg-white rounded-2xl p-6 shadow-sm">
                 <div className="flex gap-6">
-                  <img src={item.product.image} alt={item.product.name} className="w-32 h-32 object-cover rounded-xl" />
+                  <img src={resolveImageUrl(item.product.image)} alt={item.product.name} className="w-32 h-32 object-cover rounded-xl" />
                   <div className="flex-1">
                     <div className="flex justify-between items-start mb-2">
                       <div>

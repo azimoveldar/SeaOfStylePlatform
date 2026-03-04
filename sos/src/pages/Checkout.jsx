@@ -4,6 +4,7 @@ import { useCart } from '@/components/CartContext';
 import { useAuth } from '@/components/AuthContext';
 import { createPageUrl } from '@/utils';
 import { api } from '@/services/apiClient';
+import { resolveImageUrl } from '@/utils/resolveImageUrl';
 
 export default function Checkout() {
   const navigate = useNavigate();

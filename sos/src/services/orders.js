@@ -10,12 +10,45 @@
 
 import { apiGet, apiPut } from './apiClient';
 
-function extractList(data) {
-  if (Array.isArray(data))        return data;
-  if (Array.isArray(data?.items)) return data.items;
+function asArray(maybe) {
+  if (!maybe) return [];
+  if (Array.isArray(maybe)) return maybe;
+  // Some backends return { items: [...] }
+  if (Array.isArray(maybe.items)) return maybe.items;
   return [];
 }
 
+/**
+ * Normalise order shape across backend variations.
+ * Ensures `order.items` is an array (so UI doesn't show "0 items" incorrectly).
+ */
+function normalizeOrder(o) {
+  if (!o || typeof o !== 'object') return o;
+
+  const candidate =
+    o.items ??
+    o.lineItems ??
+    o.orderItems ??
+    o.cartItems ??
+    o.products ??
+    o.order_lines ??
+    o.orderLines;
+
+  const items = asArray(candidate);
+
+  return {
+    ...o,
+    items,
+  };
+}
+
+function extractList(data) {
+  const list =
+    Array.isArray(data) ? data :
+    Array.isArray(data?.items) ? data.items :
+    [];
+  return list.map(normalizeOrder);
+}
 // ─── User ──────────────────────────────────────────────────────────────────────
 
 /** List the authenticated user's own orders */

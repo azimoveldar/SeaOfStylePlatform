@@ -1,21 +1,32 @@
-// src/utils/resolveImageUrl.js
+// utils/resolveImageUrl.js
+// Resolve an image URL stored in DynamoDB/S3.
+// Supports:
+//  - Full URL (https://...) -> returned as-is
+//  - Data URL (data:...)    -> returned as-is
+//  - S3 key like "products/uuid.jpg" -> prepends VITE_S3_IMAGES_BASE_URL
+//  - Empty/null -> placeholder SVG
+const PLACEHOLDER =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+      <rect width="400" height="400" fill="#EDE8DF"/>
+      <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
+            font-family="sans-serif" font-size="14" fill="#999">No image</text>
+    </svg>
+  `);
 
-export const resolveImageUrl = (imagePath) => {
-  // 1. If there's no image, return a fallback placeholder
-  if (!imagePath) return '/placeholder.png'; 
+// S3/CloudFront base URL (no trailing slash)
+const S3_BASE = (import.meta.env.VITE_S3_IMAGES_BASE_URL || '').replace(/\/$/, '');
 
-  // 2. If the path is already a full internet URL, just return it
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    return imagePath;
-  }
+export function resolveImageUrl(raw) {
+  if (!raw) return PLACEHOLDER;
 
-  // 3. Otherwise, grab the CloudFront base URL from your .env.production file
-  const baseUrl = import.meta.env.VITE_S3_IMAGES_BASE_URL;
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  if (raw.startsWith('data:')) return raw;
 
-  // 4. Clean up slashes so we don't accidentally get 'domain.net//image.jpg'
-  const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  // Treat as relative key
+  if (S3_BASE) return `${S3_BASE}/${String(raw).replace(/^\//, '')}`;
+  return PLACEHOLDER;
+}
 
-  // 5. Combine them and return the full URL!
-  return `${cleanBase}${cleanPath}`;
-};
+export { PLACEHOLDER };
