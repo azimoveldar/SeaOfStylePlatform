@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pencil, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { resolveImageUrl } from '../../utils/resolveImageUrl';
 
 export default function ProductsTable({ products, onEdit, onDelete, onToggleStock }) {
   return (
@@ -21,7 +22,7 @@ export default function ProductsTable({ products, onEdit, onDelete, onToggleStoc
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-4">
                     <img
-                      src={product.image}
+                      src={resolveImageUrl(product.image)}
                       alt={product.name}
                       className="w-14 h-14 object-cover rounded-xl flex-shrink-0"
                     />
