@@ -72,6 +72,23 @@ export default function Checkout() {
         throw new Error('Checkout API did not return a Stripe URL. Check Lambda response.');
       }
 
+      // Save cart snapshot to sessionStorage BEFORE leaving the page.
+      // Stripe redirects back to a new page load, clearing React state.
+      // CheckoutSuccess reads this snapshot to save items to the order.
+      try {
+        sessionStorage.setItem('sos_checkout_cart', JSON.stringify({
+          items: items.map(i => ({
+            productId: i.product.id,
+            name:      i.product.name,
+            price:     i.product.price,
+            image:     i.product.image,
+            size:      i.size,
+            quantity:  i.quantity,
+          })),
+          totals,
+        }));
+      } catch { /* sessionStorage may not be available */ }
+
       // Redirect to Stripe-hosted checkout
       window.location.href = url;
     } catch (err) {

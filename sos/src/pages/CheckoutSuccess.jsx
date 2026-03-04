@@ -34,29 +34,46 @@ export default function CheckoutSuccess() {
 
     async function saveOrder() {
       try {
-        // Build totals from current cart
-        const subtotal = getTotal();
-        const shipping = subtotal > 100 ? 0 : (subtotal === 0 ? 0 : 10);
-        const total    = subtotal + shipping;
+        // Read the cart snapshot saved in Checkout.jsx before the Stripe redirect.
+        // By the time Stripe redirects here, the React cart state is empty (new page load).
+        let orderItems = [];
+        let orderTotals = { subtotal: 0, shipping: 0, total: 0 };
 
-        // Build items payload — handle both CartContext shapes
-        const orderItems = (items || []).map(i => ({
-          productId: i.product?.id || i.productId || '',
-          name:      i.product?.name || i.name || '',
-          price:     i.product?.price ?? i.price ?? 0,
-          image:     i.product?.image || i.image || '',
-          size:      i.size || '',
-          quantity:  i.quantity || 1,
-        }));
+        try {
+          const snapshot = sessionStorage.getItem('sos_checkout_cart');
+          if (snapshot) {
+            const parsed = JSON.parse(snapshot);
+            orderItems  = parsed.items  || [];
+            orderTotals = parsed.totals || orderTotals;
+          }
+        } catch { /* ignore parse errors */ }
+
+        // Also include any items still in React cart state (fallback)
+        if (orderItems.length === 0 && items && items.length > 0) {
+          const subtotal = getTotal();
+          const shipping = subtotal > 100 ? 0 : (subtotal === 0 ? 0 : 10);
+          orderTotals = { subtotal, shipping, total: subtotal + shipping };
+          orderItems  = items.map(i => ({
+            productId: i.product?.id || i.productId || '',
+            name:      i.product?.name || i.name || '',
+            price:     i.product?.price ?? i.price ?? 0,
+            image:     i.product?.image || i.image || '',
+            size:      i.size || '',
+            quantity:  i.quantity || 1,
+          }));
+        }
 
         const payload = {
           items:           orderItems,
-          totals:          { subtotal, shipping, total },
+          totals:          orderTotals,
           stripeSessionId: sessionId || null,
         };
 
         const result = await apiPost('/orders', payload);
         setOrderId(result?.orderId || result?.id || null);
+
+        // Clear the sessionStorage snapshot now that order is saved
+        try { sessionStorage.removeItem('sos_checkout_cart'); } catch {}
       } catch (err) {
         // Non-fatal: order might already exist from webhook
         console.warn('Order save failed (may already exist via webhook):', err.message);
