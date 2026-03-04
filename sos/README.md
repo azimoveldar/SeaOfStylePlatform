@@ -2,7 +2,7 @@
 
 Production-ready frontend for an AWS-friendly, serverless e-commerce site.
 
-## ✅ Tech
+## Tech
 - Vite + React 18
 - Tailwind CSS
 - Mock auth + mock serverless data (localStorage)
