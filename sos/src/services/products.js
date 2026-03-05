@@ -1,82 +1,80 @@
 /**
  * services/products.js
  *
- * All product-related API calls.
- * API shape assumed:
- *   GET  /products           → { items: Product[] }  or  Product[]
- *   GET  /products/{id}      → Product
- *   POST /admin/products     → Product  (requires admin JWT)
- *   PUT  /admin/products/{id}→ Product  (requires admin JWT)
- *   DELETE /admin/products/{id} → { success: true }
- *   GET  /admin/products/upload-url?filename=x&contentType=image/jpeg
- *        → { uploadUrl: string, publicUrl: string }
+ * API shape:
+ *   GET  /products                → { items: Product[] }
+ *   GET  /products/{id}           → Product
+ *   POST /admin/products          → Product  (admin JWT)
+ *   PUT  /admin/products/{id}     → Product  (admin JWT)
+ *   DELETE /admin/products/{id}   → { success: true }  (admin JWT)
+ *   GET  /admin/products/upload-url?filename=x&contentType=y → { uploadUrl, publicUrl }
+ *
+ * IMPORTANT — productId encoding:
+ *   Old products in DynamoDB have productId = "products/uuid" (the S3 key was
+ *   mistakenly used as the PK). New products have productId = "uuid".
+ *
+ *   When building API URLs, we URL-encode the productId so that slashes
+ *   in old IDs don't create extra path segments:
+ *     "products/uuid" → PUT /admin/products/products%2Fuuid
+ *
+ *   The Lambda URL-decodes pathParameters automatically (API Gateway does this),
+ *   so the Lambda always receives the full original productId.
  */
 
 import { api, apiGet, apiPost, apiPut, apiDelete } from './apiClient';
 
-// ─── Normalise response shapes ────────────────────────────────────────────────
-// API may return plain array OR { items: [...] } OR { products: [...] }
 function extractList(data) {
-  if (Array.isArray(data))          return data;
-  if (Array.isArray(data?.items))   return data.items;
-  if (Array.isArray(data?.products))return data.products;
+  if (Array.isArray(data))           return data;
+  if (Array.isArray(data?.items))    return data.items;
+  if (Array.isArray(data?.products)) return data.products;
   return [];
 }
 
-// ─── Public (no auth required) ────────────────────────────────────────────────
+/**
+ * Encode a productId for use in URL paths.
+ * Slashes must be percent-encoded so they don't create extra path segments.
+ * "products/uuid" → "products%2Fuuid"
+ */
+function encodeProductId(productId) {
+  return encodeURIComponent(productId);
+}
 
-/** List all products. Optionally filter by category on the server. */
+// ─── Public ────────────────────────────────────────────────────────────────────
+
 export async function listProducts({ category } = {}) {
   const qs   = category && category !== 'All' ? `?category=${encodeURIComponent(category)}` : '';
   const data = await apiGet(`/products${qs}`);
   return extractList(data);
 }
 
-/** Get a single product by ID. */
 export async function getProduct(productId) {
-  return apiGet(`/products/${productId}`);
+  return apiGet(`/products/${encodeProductId(productId)}`);
 }
 
-// ─── Admin (requires admin Cognito JWT) ───────────────────────────────────────
+// ─── Admin ─────────────────────────────────────────────────────────────────────
 
-/** Create a new product */
 export async function adminCreateProduct(productData) {
   return apiPost('/admin/products', productData);
 }
 
-/** Update an existing product */
 export async function adminUpdateProduct(productId, productData) {
-  return apiPut(`/admin/products/${productId}`, productData);
+  return apiPut(`/admin/products/${encodeProductId(productId)}`, productData);
 }
 
-/** Delete a product */
 export async function adminDeleteProduct(productId) {
-  return apiDelete(`/admin/products/${productId}`);
+  return apiDelete(`/admin/products/${encodeProductId(productId)}`);
 }
 
-/** Toggle in-stock status */
 export async function adminToggleStock(productId, inStock) {
-  return apiPut(`/admin/products/${productId}`, { inStock });
+  return apiPut(`/admin/products/${encodeProductId(productId)}`, { inStock });
 }
 
-/**
- * Get a pre-signed S3 upload URL for a product image.
- * Returns { uploadUrl, publicUrl }
- *   uploadUrl  — PUT directly to this S3 URL (no auth header needed on S3)
- *   publicUrl  — CloudFront URL to store as product.image
- */
 export async function adminGetImageUploadUrl(filename, contentType) {
   return apiGet(
     `/admin/products/upload-url?filename=${encodeURIComponent(filename)}&contentType=${encodeURIComponent(contentType)}`
   );
 }
 
-/**
- * Full image upload flow:
- *  1. Get pre-signed URL from API
- *  2. PUT file directly to S3
- *  3. Return the public CloudFront URL to store on the product
- */
 export async function adminUploadProductImage(file) {
   const { uploadUrl, publicUrl } = await adminGetImageUploadUrl(file.name, file.type);
 
