@@ -10,7 +10,7 @@ import OrdersTable from '../components/admin/OrdersTable';
 import UsersTable from '../components/admin/UsersTable';
 
 import {
-  listProducts,
+  adminListProducts,
   adminCreateProduct,
   adminUpdateProduct,
   adminDeleteProduct,
@@ -19,7 +19,6 @@ import {
 import { listAllOrdersAdmin, updateOrderStatusAdmin } from '@/services/orders';
 import { adminListUsers, adminUpdateUserRole } from '@/services/users';
 
-// ── Error Boundary ────────────────────────────────────────────────────────────
 class AdminErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
@@ -77,19 +76,22 @@ function ErrorBanner({ message, onRetry }) {
 
 function AdminContent() {
   const [tab, setTab] = useState('products');
-
-  // ── Products ──────────────────────────────────────────────────────────────
-  const [products,        setProducts]        = useState([]);
+  const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
-  const [productsError,   setProductsError]   = useState('');
-  const [modalOpen,       setModalOpen]       = useState(false);
-  const [editingProduct,  setEditingProduct]  = useState(null);
+  const [productsError, setProductsError] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+
+  const getProductKey = (productOrId) => {
+    if (typeof productOrId === 'string') return productOrId;
+    return productOrId?.productId || productOrId?.id || '';
+  };
 
   const fetchProducts = async () => {
     setProductsLoading(true);
     setProductsError('');
     try {
-      const data = await listProducts();
+      const data = await adminListProducts();
       setProducts(data);
     } catch (e) {
       setProductsError(e?.message || 'Failed to load products.');
@@ -100,15 +102,16 @@ function AdminContent() {
 
   useEffect(() => { fetchProducts(); }, []);
 
-  const openAddModal  = () => { setEditingProduct(null);    setModalOpen(true); };
-  const openEditModal = (p) => { setEditingProduct(p);      setModalOpen(true); };
+  const openAddModal = () => { setEditingProduct(null); setModalOpen(true); };
+  const openEditModal = (p) => { setEditingProduct(p); setModalOpen(true); };
 
   const handleSaveProduct = async (productData) => {
     try {
       if (editingProduct) {
-        const updated = await adminUpdateProduct(editingProduct.id, productData);
+        const productKey = getProductKey(editingProduct);
+        const updated = await adminUpdateProduct(productKey, productData);
         setProducts((prev) =>
-          prev.map((p) => (p.id === editingProduct.id ? { ...p, ...updated } : p))
+          prev.map((p) => (getProductKey(p) === productKey ? { ...p, ...updated } : p))
         );
       } else {
         const created = await adminCreateProduct(productData);
@@ -125,7 +128,7 @@ function AdminContent() {
     if (!window.confirm('Delete this product? This cannot be undone.')) return;
     try {
       await adminDeleteProduct(productId);
-      setProducts((prev) => prev.filter((p) => p.id !== productId));
+      setProducts((prev) => prev.filter((p) => getProductKey(p) !== productId));
     } catch (e) {
       alert(`Delete failed: ${e?.message || 'Unknown error'}`);
     }
@@ -135,17 +138,16 @@ function AdminContent() {
     try {
       const updated = await adminToggleStock(productId, inStock);
       setProducts((prev) =>
-        prev.map((p) => (p.id === productId ? { ...p, ...(updated || { inStock }) } : p))
+        prev.map((p) => (getProductKey(p) === productId ? { ...p, ...(updated || { inStock }) } : p))
       );
     } catch (e) {
       alert(`Stock update failed: ${e?.message || 'Unknown error'}`);
     }
   };
 
-  // ── Orders ────────────────────────────────────────────────────────────────
-  const [orders,        setOrders]        = useState([]);
+  const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
-  const [ordersError,   setOrdersError]   = useState('');
+  const [ordersError, setOrdersError] = useState('');
 
   const fetchOrders = async () => {
     setOrdersLoading(true);
@@ -173,10 +175,9 @@ function AdminContent() {
     }
   };
 
-  // ── Users ─────────────────────────────────────────────────────────────────
-  const [users,        setUsers]        = useState([]);
+  const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
-  const [usersError,   setUsersError]   = useState('');
+  const [usersError, setUsersError] = useState('');
 
   const fetchUsers = async () => {
     setUsersLoading(true);
@@ -204,13 +205,12 @@ function AdminContent() {
     }
   };
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const totalRevenue = orders.reduce((sum, o) => sum + (o.totals?.total || 0), 0);
     return {
       totalProducts: products.length,
-      totalOrders:   orders.length,
-      totalUsers:    users.length,
+      totalOrders: orders.length,
+      totalUsers: users.length,
       totalRevenue,
     };
   }, [orders, products, users]);
@@ -226,24 +226,19 @@ function AdminContent() {
           Back to store
         </Link>
 
-        <h1
-          className="text-5xl font-black text-black mb-2"
-          style={{ fontFamily: 'Playfair Display, serif' }}
-        >
+        <h1 className="text-5xl font-black text-black mb-2" style={{ fontFamily: 'Playfair Display, serif' }}>
           Admin Dashboard
         </h1>
         <p className="text-gray-500 mb-8 text-sm">Manage your store</p>
 
         <StatsBar stats={stats} />
 
-        {/* Tabs */}
         <div className="mt-10 flex flex-wrap gap-3">
-          <TabButton active={tab === 'products'} onClick={() => setTab('products')} icon={Package}     label="Products" />
-          <TabButton active={tab === 'orders'}   onClick={() => setTab('orders')}   icon={ClipboardList} label="Orders" />
-          <TabButton active={tab === 'users'}    onClick={() => setTab('users')}    icon={Users}        label="Users" />
+          <TabButton active={tab === 'products'} onClick={() => setTab('products')} icon={Package} label="Products" />
+          <TabButton active={tab === 'orders'} onClick={() => setTab('orders')} icon={ClipboardList} label="Orders" />
+          <TabButton active={tab === 'users'} onClick={() => setTab('users')} icon={Users} label="Users" />
         </div>
 
-        {/* Products Tab */}
         {tab === 'products' && (
           <div className="mt-6">
             <div className="flex items-center justify-between mb-6">
@@ -259,9 +254,7 @@ function AdminContent() {
             {productsLoading && (
               <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 animate-pulse h-32" />
             )}
-            {!productsLoading && productsError && (
-              <ErrorBanner message={productsError} onRetry={fetchProducts} />
-            )}
+            {!productsLoading && productsError && <ErrorBanner message={productsError} onRetry={fetchProducts} />}
             {!productsLoading && !productsError && (
               <ProductsTable
                 products={products}
@@ -273,39 +266,23 @@ function AdminContent() {
           </div>
         )}
 
-        {/* Orders Tab */}
         {tab === 'orders' && (
           <div className="mt-6">
             <h2 className="text-xl font-bold text-black mb-6">Orders ({orders.length})</h2>
-            {ordersLoading && (
-              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 animate-pulse h-32" />
-            )}
-            {!ordersLoading && ordersError && (
-              <ErrorBanner message={ordersError} onRetry={fetchOrders} />
-            )}
-            {!ordersLoading && !ordersError && orders.length === 0 && (
-              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 text-gray-500">No orders yet.</div>
-            )}
-            {!ordersLoading && !ordersError && orders.length > 0 && (
+            {ordersLoading && <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 animate-pulse h-32" />}
+            {!ordersLoading && ordersError && <ErrorBanner message={ordersError} onRetry={fetchOrders} />}
+            {!ordersLoading && !ordersError && (
               <OrdersTable orders={orders} onUpdateStatus={handleUpdateOrder} />
             )}
           </div>
         )}
 
-        {/* Users Tab */}
         {tab === 'users' && (
           <div className="mt-6">
             <h2 className="text-xl font-bold text-black mb-6">Users ({users.length})</h2>
-            {usersLoading && (
-              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 animate-pulse h-32" />
-            )}
-            {!usersLoading && usersError && (
-              <ErrorBanner message={usersError} onRetry={fetchUsers} />
-            )}
-            {!usersLoading && !usersError && users.length === 0 && (
-              <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 text-gray-500">No users found.</div>
-            )}
-            {!usersLoading && !usersError && users.length > 0 && (
+            {usersLoading && <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 animate-pulse h-32" />}
+            {!usersLoading && usersError && <ErrorBanner message={usersError} onRetry={fetchUsers} />}
+            {!usersLoading && !usersError && (
               <UsersTable users={users} onChangeRole={handleChangeRole} />
             )}
           </div>
@@ -316,19 +293,22 @@ function AdminContent() {
         <ProductFormModal
           product={editingProduct}
           onSave={handleSaveProduct}
-          onClose={() => { setModalOpen(false); setEditingProduct(null); }}
+          onClose={() => {
+            setModalOpen(false);
+            setEditingProduct(null);
+          }}
         />
       )}
     </div>
   );
 }
 
-export default function Admin() {
+export default function AdminPage() {
   return (
-    <AdminErrorBoundary>
-      <ProtectedRoute requireAdmin>
+    <ProtectedRoute adminOnly>
+      <AdminErrorBoundary>
         <AdminContent />
-      </ProtectedRoute>
-    </AdminErrorBoundary>
+      </AdminErrorBoundary>
+    </ProtectedRoute>
   );
 }
