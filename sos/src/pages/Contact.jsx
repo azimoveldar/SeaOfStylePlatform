@@ -53,7 +53,7 @@ export default function Contact() {
                   <input
                     type="text" id="name" name="name" value={formData.name} onChange={handleChange} required
                     className="w-full px-4 py-3 rounded-xl border border-[#111111]/12 bg-[#FDFAF6] focus:border-[#C96B3A] focus:outline-none transition-colors text-sm"
-                    placeholder="John Doe"
+                    placeholder="Eldar Azimov"
                   />
                 </div>
                 <div>
@@ -61,7 +61,7 @@ export default function Contact() {
                   <input
                     type="email" id="email" name="email" value={formData.email} onChange={handleChange} required
                     className="w-full px-4 py-3 rounded-xl border border-[#111111]/12 bg-[#FDFAF6] focus:border-[#C96B3A] focus:outline-none transition-colors text-sm"
-                    placeholder="john@example.com"
+                    placeholder="eldar@example.com"
                   />
                 </div>
                 <div>
