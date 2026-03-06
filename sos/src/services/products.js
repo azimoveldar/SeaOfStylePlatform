@@ -4,68 +4,61 @@
  * API shape:
  *   GET  /products                → { items: Product[] }
  *   GET  /products/{id}           → Product
- *   GET  /admin/products          → { items: Product[] } (admin JWT)
  *   POST /admin/products          → Product  (admin JWT)
  *   PUT  /admin/products/{id}     → Product  (admin JWT)
  *   DELETE /admin/products/{id}   → { success: true }  (admin JWT)
  *   GET  /admin/products/upload-url?filename=x&contentType=y → { uploadUrl, publicUrl }
+ *
+ * IMPORTANT — productId encoding:
+ *   Old products in DynamoDB have productId = "products/uuid" (the S3 key was
+ *   mistakenly used as the PK). New products have productId = "uuid".
+ *
+ *   When building API URLs, we URL-encode the productId so that slashes
+ *   in old IDs don't create extra path segments:
+ *     "products/uuid" → PUT /admin/products/products%2Fuuid
+ *
+ *   The Lambda URL-decodes pathParameters automatically (API Gateway does this),
+ *   so the Lambda always receives the full original productId.
  */
 
-import { apiGet, apiPost, apiPut, apiDelete } from './apiClient';
-
-function normalizeProduct(product) {
-  if (!product || typeof product !== 'object') return product;
-
-  const rawId = product.productId ?? product.id ?? product._id ?? '';
-
-  return {
-    ...product,
-    productId: rawId,
-    id: rawId,
-    price: Number(product.price || 0),
-  };
-}
+import { api, apiGet, apiPost, apiPut, apiDelete } from './apiClient';
 
 function extractList(data) {
-  const list = Array.isArray(data)
-    ? data
-    : Array.isArray(data?.items)
-      ? data.items
-      : Array.isArray(data?.products)
-        ? data.products
-        : [];
-
-  return list.map(normalizeProduct);
+  if (Array.isArray(data))           return data;
+  if (Array.isArray(data?.items))    return data.items;
+  if (Array.isArray(data?.products)) return data.products;
+  return [];
 }
 
+/**
+ * Encode a productId for use in URL paths.
+ * Slashes must be percent-encoded so they don't create extra path segments.
+ * "products/uuid" → "products%2Fuuid"
+ */
 function encodeProductId(productId) {
   return encodeURIComponent(productId);
 }
 
+// ─── Public ────────────────────────────────────────────────────────────────────
+
 export async function listProducts({ category } = {}) {
-  const qs = category && category !== 'All' ? `?category=${encodeURIComponent(category)}` : '';
+  const qs   = category && category !== 'All' ? `?category=${encodeURIComponent(category)}` : '';
   const data = await apiGet(`/products${qs}`);
   return extractList(data);
 }
 
-export async function adminListProducts() {
-  const data = await apiGet('/admin/products');
-  return extractList(data);
+export async function getProduct(productId) {
+  return apiGet(`/products/${encodeProductId(productId)}`);
 }
 
-export async function getProduct(productId) {
-  const data = await apiGet(`/products/${encodeProductId(productId)}`);
-  return normalizeProduct(data);
-}
+// ─── Admin ─────────────────────────────────────────────────────────────────────
 
 export async function adminCreateProduct(productData) {
-  const data = await apiPost('/admin/products', productData);
-  return normalizeProduct(data);
+  return apiPost('/admin/products', productData);
 }
 
 export async function adminUpdateProduct(productId, productData) {
-  const data = await apiPut(`/admin/products/${encodeProductId(productId)}`, productData);
-  return normalizeProduct(data);
+  return apiPut(`/admin/products/${encodeProductId(productId)}`, productData);
 }
 
 export async function adminDeleteProduct(productId) {
@@ -73,8 +66,7 @@ export async function adminDeleteProduct(productId) {
 }
 
 export async function adminToggleStock(productId, inStock) {
-  const data = await apiPut(`/admin/products/${encodeProductId(productId)}`, { inStock });
-  return normalizeProduct(data);
+  return apiPut(`/admin/products/${encodeProductId(productId)}`, { inStock });
 }
 
 export async function adminGetImageUploadUrl(filename, contentType) {
@@ -87,9 +79,9 @@ export async function adminUploadProductImage(file) {
   const { uploadUrl, publicUrl } = await adminGetImageUploadUrl(file.name, file.type);
 
   const uploadRes = await fetch(uploadUrl, {
-    method: 'PUT',
+    method:  'PUT',
     headers: { 'Content-Type': file.type },
-    body: file,
+    body:    file,
   });
 
   if (!uploadRes.ok) {

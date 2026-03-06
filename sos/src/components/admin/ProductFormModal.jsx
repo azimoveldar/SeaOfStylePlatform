@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, ImageIcon, Loader2 } from 'lucide-react';
 import { adminUploadProductImage } from '@/services/products';
-import { resolveImageUrl } from '@/utils/resolveImageUrl';
 
 const CATEGORIES = ['Tops', 'Bottoms', 'Dresses', 'Outerwear', 'Swimwear', 'Footwear', 'Accessories'];
 
@@ -195,7 +194,7 @@ export default function ProductFormModal({ product, onSave, onClose }) {
             {form.image ? (
               <div className="relative">
                 <img
-                  src={resolveImageUrl(form.image)}
+                  src={form.image}
                   alt="Product preview"
                   className="w-full h-48 object-cover rounded-xl border-2 border-gray-200"
                   onError={(e) => { e.target.src = 'https://via.placeholder.com/400x400?text=Image'; }}
