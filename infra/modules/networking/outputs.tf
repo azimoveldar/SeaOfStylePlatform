@@ -1,35 +1,33 @@
-output "vpc_id" {
-  value = aws_vpc.this.id
-}
+###########################
+# Networking Module Outputs
+###########################
 
-output "vpc_cidr" {
-  value = aws_vpc.this.cidr_block
+output "vpc_id" {
+  value       = aws_vpc.this.id
+  description = "VPC ID"
 }
 
 output "public_subnet_ids" {
-  value = aws_subnet.public[*].id
+  value       = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+  description = "Public subnet IDs"
 }
 
 output "private_subnet_ids" {
-  value = aws_subnet.private[*].id
-}
-
-output "public_route_table_id" {
-  value = aws_route_table.public.id
-}
-
-output "private_route_table_ids" {
-  value = aws_route_table.private[*].id
+  value       = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+  description = "Private subnet IDs (Lambda subnets)"
 }
 
 output "lambda_sg_id" {
-  value = aws_security_group.lambda.id
+  value       = aws_security_group.lambda.id
+  description = "Lambda security group ID"
 }
 
-output "alb_sg_id" {
-  value = aws_security_group.alb.id
+output "endpoint_sg_id" {
+  value       = aws_security_group.endpoints.id
+  description = "VPC endpoint security group ID"
 }
 
-output "vpce_sg_id" {
-  value = aws_security_group.vpce.id
+output "nat_gateway_ids" {
+  value       = [aws_nat_gateway.a.id, aws_nat_gateway.b.id]
+  description = "NAT gateway IDs"
 }
