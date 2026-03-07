@@ -53,7 +53,7 @@ export default function Contact() {
                   <input
                     type="text" id="name" name="name" value={formData.name} onChange={handleChange} required
                     className="w-full px-4 py-3 rounded-xl border border-[#111111]/12 bg-[#FDFAF6] focus:border-[#C96B3A] focus:outline-none transition-colors text-sm"
-                    placeholder="Eldar Azimov"
+                    placeholder="Eldar"
                   />
                 </div>
                 <div>
@@ -118,7 +118,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="text-xs font-semibold tracking-widest uppercase text-[#111111] mb-1">Visit Us</h3>
-                    <p className="text-[#4A4A4A] text-sm">123 Fashion Street<br />Style District, NY 10001</p>
+                    <p className="text-[#4A4A4A] text-sm">123 Fashion Street<br />Style District, ON M2J 2X5</p>
                   </div>
                 </div>
               </div>
