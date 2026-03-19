@@ -105,15 +105,13 @@ export default function ProductDetail() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
           {/* Product Image */}
-          <div className="bg-[#EDE8DF] rounded-3xl overflow-hidden">
-            <div className="aspect-square">
-              <img
-                src={resolveImageUrl(product.image)}
-                alt={product.name}
-                className="w-full h-full object-cover"
-                onError={(e) => { e.target.src = 'https://via.placeholder.com/800x800?text=No+Image'; }}
-              />
-            </div>
+          <div className="bg-[#EDE8DF] rounded-3xl overflow-hidden self-start sticky top-10">
+            <img
+              src={resolveImageUrl(product.image)}
+              alt={product.name}
+              className="w-full h-auto object-cover block"
+              onError={(e) => { e.target.src = 'https://via.placeholder.com/800x800?text=No+Image'; }}
+            />
           </div>
 
           {/* Product Info */}
