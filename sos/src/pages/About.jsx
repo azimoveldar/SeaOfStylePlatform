@@ -56,9 +56,9 @@ export default function About() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { name: 'Shirish', role: 'Creative Vision', bg: 'bg-[#EDD9A3]' },
-              { name: 'Eldar', role: 'Strategic Design', bg: 'bg-[#E8C4A8]' },
-              { name: 'Amir', role: 'Technical Innovation', bg: 'bg-[#D4C4B0]' }
+              { name: 'Shirish', role: 'Infrastructure Engineer', bg: 'bg-[#EDD9A3]' },
+              { name: 'Eldar', role: 'Lead DevOps Engineer', bg: 'bg-[#E8C4A8]' },
+              { name: 'Amir', role: 'Cloud Solutions Architect', bg: 'bg-[#D4C4B0]' }
             ].map((member) => (
               <div key={member.name} className="text-center">
                 <div className={`w-32 h-32 ${member.bg} rounded-full mx-auto mb-4 flex items-center justify-center`}>
