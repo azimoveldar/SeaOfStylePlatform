@@ -92,10 +92,28 @@ export default function Cart() {
                   <span>Shipping</span>
                   <span className="font-medium">{getTotal() > 100 ? 'FREE' : '$10.00'}</span>
                 </div>
+                <div className="flex justify-between text-gray-700">
+                  <span className="flex items-center gap-1">
+                    HST
+                    <span className="text-xs text-gray-400 font-normal">(13% · Ontario)</span>
+                  </span>
+                  <span className="font-medium">
+                    ${((() => {
+                      const shipping = getTotal() > 100 ? 0 : 10;
+                      return (getTotal() + shipping) * 0.13;
+                    })()).toFixed(2)}
+                  </span>
+                </div>
                 <div className="border-t border-gray-200 pt-4">
                   <div className="flex justify-between text-black">
                     <span className="text-xl font-bold">Total</span>
-                    <span className="text-2xl font-bold">${(getTotal() + (getTotal() > 100 ? 0 : 10)).toFixed(2)}</span>
+                    <span className="text-2xl font-bold">
+                      ${((() => {
+                        const shipping = getTotal() > 100 ? 0 : 10;
+                        const hst = (getTotal() + shipping) * 0.13;
+                        return getTotal() + shipping + hst;
+                      })()).toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -104,6 +122,9 @@ export default function Cart() {
                   Add ${(100 - getTotal()).toFixed(2)} more for free shipping!
                 </p>
               )}
+              <p className="text-xs text-gray-400 text-center mb-4">
+                HST (13%) applied · Reg. No. included at checkout
+              </p>
               <button onClick={handleCheckout} className="w-full bg-black text-white py-4 rounded-full font-bold text-lg hover:bg-[#C96B3A] transition-all mb-4">
                 Proceed to Checkout
               </button>
