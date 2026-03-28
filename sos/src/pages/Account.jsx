@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { User, Package, Lock, LogOut, Mail, AlertCircle } from 'lucide-react';
+import { User, Package, Lock, LogOut, AlertCircle } from 'lucide-react';
 import ProtectedRoute from '../components/common/ProtectedRoute';
 import { useAuth } from '../components/AuthContext';
 import { listOrdersForUser } from '@/services/orders';
@@ -169,17 +169,7 @@ function AccountContent() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 p-4 bg-[#F5EFE0] rounded-lg">
-                    <Mail className="w-5 h-5 text-[#C96B3A]" />
-                    <span className="text-sm text-[#4A4A4A]">
-                      Role: <span className="font-bold">{user?.role}</span>
-                      {user?.groups?.includes('sos-admins') && (
-                        <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-semibold">
-                          sos-admins group
-                        </span>
-                      )}
-                    </span>
-                  </div>
+
                   <button
                     type="submit"
                     disabled={profileSaving}
