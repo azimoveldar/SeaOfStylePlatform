@@ -39,6 +39,7 @@ jobs:
           VITE_BASE_PATH=/
           VITE_STRIPE_PUBLISHABLE_KEY=${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
           VITE_S3_IMAGES_BASE_URL=${{ secrets.VITE_S3_IMAGES_BASE_URL }}
+          VITE_LEX_API_URL=https://8zp3h8qxu7.execute-api.ca-central-1.amazonaws.com/prod/chat
           EOF
 
       - name: Install
