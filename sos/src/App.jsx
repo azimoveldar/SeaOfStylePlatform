@@ -2,8 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
 import { pagesConfig } from './pages.config';
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-import { AuthProvider } from '@/components/AuthContext';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { AuthProvider, useAuth } from '@/components/AuthContext';
 import { CartProvider } from '@/components/CartContext';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
@@ -11,6 +11,7 @@ import Checkout from '@/pages/Checkout';
 import CheckoutSuccess from '@/pages/CheckoutSuccess';
 import CheckoutCancel from '@/pages/CheckoutCancel';
 import NotFound from '@/pages/NotFound';
+import LexChatbot from '@/components/common/LexChatbot';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -19,6 +20,16 @@ const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 const LayoutWrapper = ({ children, currentPageName }) =>
   Layout ? <Layout currentPageName={currentPageName}>{children}</Layout> : <>{children}</>;
 
+/**
+ * ChatbotWrapper reads auth state and passes isAuthenticated to LexChatbot.
+ * It must live inside <AuthProvider> so useAuth() works.
+ * We do NOT render the chatbot on Admin, Login, or Signup pages.
+ */
+function ChatbotWrapper() {
+  const { isAuthenticated } = useAuth();
+  return <LexChatbot isAuthenticated={isAuthenticated} />;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -26,19 +37,28 @@ function App() {
         <QueryClientProvider client={queryClientInstance}>
           <Router>
             <Routes>
-              {/* Auth */}
+              {/* Auth pages — no chatbot overlay needed but it still renders harmlessly */}
               <Route path="/login"  element={<Login />} />
               <Route path="/signup" element={<Signup />} />
 
               {/* Checkout flow */}
-              <Route path="/checkout"         element={<Checkout />} />
-              {/*
-                Stripe success_url must match exactly what your Lambda sets.
-                Lambda should set: success_url = "https://yourdomain.com/CheckoutSuccess?session_id={CHECKOUT_SESSION_ID}"
-                That ?session_id param lands here and CheckoutSuccess reads it.
-              */}
-              <Route path="/CheckoutSuccess"  element={<LayoutWrapper currentPageName="CheckoutSuccess"><CheckoutSuccess /></LayoutWrapper>} />
-              <Route path="/CheckoutCancel"   element={<LayoutWrapper currentPageName="CheckoutCancel"><CheckoutCancel /></LayoutWrapper>} />
+              <Route path="/checkout" element={<Checkout />} />
+              <Route
+                path="/CheckoutSuccess"
+                element={
+                  <LayoutWrapper currentPageName="CheckoutSuccess">
+                    <CheckoutSuccess />
+                  </LayoutWrapper>
+                }
+              />
+              <Route
+                path="/CheckoutCancel"
+                element={
+                  <LayoutWrapper currentPageName="CheckoutCancel">
+                    <CheckoutCancel />
+                  </LayoutWrapper>
+                }
+              />
 
               {/* Main landing page */}
               <Route
@@ -65,7 +85,11 @@ function App() {
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+
+            {/* Global chatbot — rendered outside <Routes> so it persists across navigation */}
+            <ChatbotWrapper />
           </Router>
+
           <Toaster />
         </QueryClientProvider>
       </CartProvider>
