@@ -201,7 +201,7 @@ export default function LexChatbot({ isAuthenticated = false }) {
       {!open && (
         <button
           onClick={() => { setOpen(true); setMinimised(false); }}
-          className="fixed bottom-6 left-6 z-50 w-14 h-14 bg-[#111111] hover:bg-[#C96B3A] text-white rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 group"
+          className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#111111] hover:bg-[#C96B3A] text-white rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 group"
           aria-label="Open chat"
         >
           <MessageCircle className="w-6 h-6" />
@@ -212,7 +212,7 @@ export default function LexChatbot({ isAuthenticated = false }) {
       {/* ── Chat window ── */}
       {open && (
         <div
-          className={`fixed bottom-6 left-6 z-50 w-[360px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-100 transition-all duration-300 ${
+          className={`fixed bottom-6 right-6 z-50 w-[360px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-100 transition-all duration-300 ${
             minimised ? 'h-[56px]' : 'h-[520px]'
           }`}
           style={{ maxHeight: 'calc(100vh - 80px)' }}
