@@ -6,17 +6,32 @@ import { listOrdersForUser } from '@/services/orders';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
+// ── Type definitions (JSDoc — keeps checkJs happy without converting to .tsx) ─
+
+/**
+ * @typedef {{ productName?: string, name?: string, title?: string, product_name?: string, quantity?: number, qty?: number, price?: number }} OrderItem
+ * @typedef {{ id?: string, orderId?: string, status?: string, createdAt?: string, items?: OrderItem[], totals?: { total?: number } }} Order
+ * @typedef {{ text: string, type: 'success' | 'error' }} MessageState
+ * @typedef {{ name: string, email: string }} ProfileData
+ * @typedef {{ oldPassword: string, newPassword: string, confirmPassword: string }} PasswordData
+ */
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-/** Shorten a UUID-style order ID to the first 8 characters for display. */
-const shortId = (id = '') => id.length > 8 ? id.slice(0, 8).toUpperCase() : id;
+/** Shorten a UUID-style order ID to the first 8 chars for display.
+ * @param {string} id
+ * @returns {string}
+ */
+const shortId = (id = '') => (id.length > 8 ? id.slice(0, 8).toUpperCase() : id);
 
 /** Extract a human-readable product name from an order item.
- *  Handles the most common field names your Lambda/DynamoDB might return. */
+ * @param {OrderItem} item
+ * @returns {string | null}
+ */
 const itemName = (item) =>
   item?.productName || item?.name || item?.title || item?.product_name || null;
 
-/** Colour config for every order status we know about. */
+/** @type {Record<string, string>} */
 const STATUS_STYLES = {
   Delivered:  'bg-green-100  text-green-700',
   Confirmed:  'bg-[#F5EFE0]  text-[#C96B3A]',
@@ -24,8 +39,9 @@ const STATUS_STYLES = {
   Cancelled:  'bg-red-100    text-red-700',
   Processing: 'bg-yellow-100 text-yellow-700',
 };
-const statusStyle = (status) =>
-  STATUS_STYLES[status] ?? 'bg-gray-100 text-gray-600';
+
+/** @param {string} status @returns {string} */
+const statusStyle = (status) => STATUS_STYLES[status] ?? 'bg-gray-100 text-gray-600';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -34,18 +50,27 @@ function AccountContent() {
   const isCognito = authProvider === 'cognito';
 
   const [activeTab, setActiveTab] = useState('profile');
+
+  /** @type {[ProfileData, React.Dispatch<React.SetStateAction<ProfileData>>]} */
   const [profileData, setProfileData] = useState({
-    name:  user?.name  || '',
-    email: user?.email || '',
+    name:  user?.name  ?? '',
+    email: user?.email ?? '',
   });
+
+  /** @type {[PasswordData, React.Dispatch<React.SetStateAction<PasswordData>>]} */
   const [passwordData, setPasswordData] = useState({
     oldPassword: '', newPassword: '', confirmPassword: '',
   });
-  const [message,       setMessage]       = useState({ text: '', type: 'success' });
-  const [profileSaving, setProfileSaving] = useState(false);
-  const [passwordSaving,setPasswordSaving]= useState(false);
 
-  const [orders,        setOrders]        = useState([]);
+  /** @type {[MessageState, React.Dispatch<React.SetStateAction<MessageState>>]} */
+  const [message, setMessage] = useState({ text: '', type: /** @type {'success'} */ ('success') });
+
+  const [profileSaving,  setProfileSaving]  = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  /** @type {[Order[], React.Dispatch<React.SetStateAction<Order[]>>]} */
+  const [orders, setOrders] = useState(/** @type {Order[]} */ ([]));
+
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError,   setOrdersError]   = useState('');
 
@@ -57,7 +82,7 @@ function AccountContent() {
       try {
         const list = await listOrdersForUser();
         if (mounted) setOrders(Array.isArray(list) ? list : []);
-      } catch (err) {
+      } catch (/** @type {any} */ err) {
         if (mounted) setOrdersError(err?.message || 'Failed to load orders.');
       } finally {
         if (mounted) setOrdersLoading(false);
@@ -66,24 +91,27 @@ function AccountContent() {
     return () => { mounted = false; };
   }, []);
 
-  const showMessage = (text, type = 'success') => {
+  /** @param {string} text @param {'success' | 'error'} [type] */
+  const showMessage = (text, type = /** @type {'success'} */ ('success')) => {
     setMessage({ text, type });
     setTimeout(() => setMessage({ text: '', type: 'success' }), 4000);
   };
 
+  /** @param {React.FormEvent<HTMLFormElement>} e */
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     setProfileSaving(true);
     try {
       await updateProfile(profileData);
       showMessage('Profile updated successfully!');
-    } catch (err) {
+    } catch (/** @type {any} */ err) {
       showMessage(err?.message || 'Profile update failed.', 'error');
     } finally {
       setProfileSaving(false);
     }
   };
 
+  /** @param {React.FormEvent<HTMLFormElement>} e */
   const handlePasswordChange = async (e) => {
     e.preventDefault();
     if (passwordData.newPassword !== passwordData.confirmPassword) {
@@ -99,7 +127,7 @@ function AccountContent() {
       await changePassword(passwordData.oldPassword, passwordData.newPassword);
       showMessage('Password changed successfully!');
       setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (err) {
+    } catch (/** @type {any} */ err) {
       showMessage(err?.message || 'Password change failed.', 'error');
     } finally {
       setPasswordSaving(false);
@@ -134,15 +162,16 @@ function AccountContent() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+
           {/* ── Sidebar ── */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <div className="space-y-2">
-                {[
+                {/** @type {{ key: string, icon: React.ElementType, label: string }[]} */([
                   { key: 'profile',  icon: User,    label: 'Profile'  },
                   { key: 'orders',   icon: Package,  label: 'Orders'   },
                   { key: 'password', icon: Lock,     label: 'Password' },
-                ].map(({ key, icon: Icon, label }) => (
+                ]).map(({ key, icon: Icon, label }) => (
                   <button
                     key={key}
                     onClick={() => setActiveTab(key)}
@@ -249,11 +278,11 @@ function AccountContent() {
                 {!ordersLoading && !ordersError && orders.length > 0 && (
                   <div className="space-y-4">
                     {orders.map((order) => {
-                      const orderId   = order.id || order.orderId || '';
-                      const items     = Array.isArray(order.items) ? order.items : [];
-                      const total     = order.totals?.total ?? 0;
-                      const status    = order.status || 'Processing';
-                      const dateStr   = order.createdAt
+                      const orderId = order.id || order.orderId || '';
+                      const items   = Array.isArray(order.items) ? order.items : [];
+                      const total   = order.totals?.total ?? 0;
+                      const status  = order.status || 'Processing';
+                      const dateStr = order.createdAt
                         ? new Date(order.createdAt).toLocaleDateString()
                         : '—';
 
@@ -342,7 +371,7 @@ function AccountContent() {
                         onChange={(e) =>
                           setPasswordData({ ...passwordData, newPassword: e.target.value })
                         }
-                        className="w-full px-4 py-3 rounded-lg border-2 rounded-lg border-2 border-gray-200 focus:border-[#C96B3A] focus:outline-none"
+                        className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#C96B3A] focus:outline-none"
                         required
                         minLength={8}
                       />
