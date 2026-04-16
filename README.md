@@ -56,7 +56,7 @@ We follow a hybrid deployment strategy: initially provisioning services manually
 - CI/CD with GitHub Actions + OIDC (no stored credentials)
 - Terraform IaC with S3 state backend + DynamoDB state locking
 
----
+---checkout-cancel.png
 
 ## 🖼️ Screenshots
 
@@ -68,6 +68,9 @@ We follow a hybrid deployment strategy: initially provisioning services manually
 
 ### Checkout with Stripe
 ![Stripe Checkout](docs/screenshots/stripe-checkout.png)
+
+### Cancel the checkout
+![Checkout Cancelled](docs/screenshots/checkout-cancel.png)
 
 ### Admin Dashboard
 ![Admin Dashboard](docs/screenshots/admin-dashboard.png)
